@@ -1,0 +1,6 @@
+Changes
+Makefile.PL
+MANIFEST
+README
+t/XRD-Parser.t
+lib/XRD/Parser.pm
