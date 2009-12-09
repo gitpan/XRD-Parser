@@ -2,7 +2,7 @@ NAME
     XRD::Parser - Parse XRD files into RDF::Trine models
 
 VERSION
-    0.01
+    0.02
 
 SYNOPSIS
       use RDF::Query;

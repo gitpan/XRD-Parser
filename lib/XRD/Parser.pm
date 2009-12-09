@@ -6,16 +6,17 @@ XRD::Parser - Parse XRD files into RDF::Trine models
 
 =head1 VERSION
 
-0.01
+0.02
 
 =cut
 
 use 5.008001;
 use strict;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use Encode qw(encode_utf8);
+use HTTP::Link::Parser;
 use LWP::Simple;
 use RDF::Trine;
 use URI::Escape;
@@ -375,35 +376,43 @@ sub _consume_XRD
 	{
 		$description_uri = $this->bnode;
 	}
-	
-	my @aliases = map { $this->uri($this->stringify($_),{'require-absolute'=>1}) }
-		$xrd->getChildrenByTagName('Alias')->get_nodelist;
-		
+			
 	my $subject_node = $xrd->getChildrenByTagName('Subject')->shift;
 	my $subject;
+	my @subjects;
 	$subject = $this->uri(
 		$this->stringify($subject_node),
 		{'require-absolute'=>1})
 		if $subject_node;
-	$subject = shift @aliases
-		unless defined $subject;
-	$subject = $this->bnode($xrd)
-		unless defined $subject;
+	push @subjects, $subject
+		if defined $subject;
+	foreach my $host_node ($xrd->getChildrenByTagNameNS(
+		'http://host-meta.net/ns/1.0', 'Host')->get_nodelist)
+	{
+		my $host_uri = 'http://ontologi.es/xrd#host:'
+			. $this->stringify($host_node);
+		$subject = $host_uri
+			unless defined $subject;
+		push @subjects, $host_uri;
+	}
+	unless (@subjects)
+	{
+		$subject = $this->bnode($xrd);
+		push @subjects, $subject;
+	}
 	
-	my @subjects = ($subject, @aliases);
-
 	$this->rdf_triple(
 		$xrd,
 		$description_uri,
 		'http://xmlns.com/foaf/0.1/primaryTopic',
 		$subject);
-	foreach my $s (@subjects)
+	foreach my $alias ( $xrd->getChildrenByTagName('Alias')->get_nodelist )
 	{
 		$this->rdf_triple(
-			$xrd,
-			$description_uri,
-			'http://xmlns.com/foaf/0.1/topic',
-			$s);
+			$alias,
+			$subject,
+			'http://ontologi.es/xrd#alias',
+			$this->uri($this->stringify($alias),{'require-absolute'=>1}) );
 	}
 	
 	my $expires_node = $xrd->getChildrenByTagName('Expires')->shift;
@@ -411,9 +420,9 @@ sub _consume_XRD
 	if (length $expires)
 	{
 		$this->rdf_triple_literal(
-			$xrd,
+			$expires_node,
 			$description_uri,
-			'http://purl.org/dc/terms/valid',
+			'http://ontologi.es/xrd#expires',
 			$expires,
 			'http://www.w3.org/2001/XMLSchema#dateTime');
 	}
@@ -457,63 +466,92 @@ sub _consume_Link
 	my $l    = shift;
 	my $S    = shift;
 	
-	return unless $l->hasAttribute('href');
-	
-	my $property_uri = $this->uri(
-		$l->getAttribute('rel'), {'require-absolute'=>1});
+	my $property_uri = HTTP::Link::Parser::relationship_uri(
+		$l->getAttribute('rel'));
 	return unless $property_uri;
 	
-	my $value = $this->uri($l->getAttribute('href'));
+	my @value;
+	my $value_type;
+	if ($l->hasAttribute('href'))
+	{
+		push @value, $this->uri($l->getAttribute('href'));
+		$value_type = 'href';
+	}
+	elsif ($l->hasAttribute('template'))
+	{
+		push @value, $l->getAttribute('template');
+		push @value, 'http://ontologi.es/xrd#URITemplate';
+		$value_type = 'template';
+		$property_uri = "x-xrd+template+for:$property_uri";
+	}
+	else
+	{
+		return;
+	}
 
 	foreach my $subject_uri (@$S)
 	{
-		$this->rdf_triple(
-			$l,
-			$subject_uri,
-			$property_uri,
-			$value);
-	}
-	
-	my $type = $l->getAttribute('type');
-	if (defined $type)
-	{
-		$this->rdf_triple(
-			$l,
-			$value,
-			'http://purl.org/dc/terms/format',
-			'http://www.iana.org/assignments/media-types/'.$type);
-	}
-	
-	foreach my $title ($l->getChildrenByTagName('Title')->get_nodelist)
-	{
-		my $lang = undef;
-		if ($title->hasAttributeNS(XML_XML_NS, 'lang'))
+		if ($value_type eq 'href')
 		{
-			$lang = $title->getAttributeNS(XML_XML_NS, 'lang');
-			$lang = undef unless valid_lang($lang);
+			$this->rdf_triple(
+				$l,
+				$subject_uri,
+				$property_uri,
+				@value);
 		}
-		$this->rdf_triple_literal(
-			$title,
-			$value,
-			'http://purl.org/dc/terms/title',
-			$this->stringify($title),
-			undef,
-			$lang);
+		elsif ($value_type eq 'template')
+		{
+			$this->rdf_triple_literal(
+				$l,
+				$subject_uri,
+				$property_uri,
+				@value);
+		}
 	}
 	
-	foreach my $lp ($l->getChildrenByTagName('Property')->get_nodelist)
+	if ($value_type eq 'href')
 	{
-		$this->_consume_Link_Property($lp, $S, $property_uri, $value);
-	}
+		my $type = $l->getAttribute('type');
+		if (defined $type)
+		{
+			$this->rdf_triple(
+				$l,
+				@value,
+				'http://purl.org/dc/terms/format',
+				'http://www.iana.org/assignments/media-types/'.$type);
+		}
+		
+		foreach my $title ($l->getChildrenByTagName('Title')->get_nodelist)
+		{
+			my $lang = undef;
+			if ($title->hasAttributeNS(XML_XML_NS, 'lang'))
+			{
+				$lang = $title->getAttributeNS(XML_XML_NS, 'lang');
+				$lang = undef unless valid_lang($lang);
+			}
+			$this->rdf_triple_literal(
+				$title,
+				@value,
+				'http://purl.org/dc/terms/title',
+				$this->stringify($title),
+				undef,
+				$lang);
+		}
+		
+		foreach my $lp ($l->getChildrenByTagName('Property')->get_nodelist)
+		{
+			$this->_consume_Link_Property($lp, $S, $property_uri, @value);
+		}
+	}	
 }
 
 sub _consume_Link_Property
 {
-	my $this = shift;
-	my $lp   = shift;
-	my $S    = shift;
-	my $p    = shift;
-	my $o    = shift;
+	my $this   = shift;
+	my $lp     = shift;
+	my $S      = shift;
+	my $p      = shift;
+	my $o      = shift;
 	
 	my $property_uri = $this->uri(
 		$lp->getAttribute('type'), {'require-absolute'=>1});

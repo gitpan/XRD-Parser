@@ -4,3 +4,9 @@ Revision history for Perl extension XRD::Parser.
 	- original version; created by h2xs 1.23 with options
 		-A -X -b 5.8.1 --skip-exporter --skip-autoloader --skip-warnings -n XRD::Parser
 
+0.02
+	- Support for host-meta's <hm:Host/> element as a way to set subjects.
+	- Implement <Alias/> element as an owl:sameAs-like predicate rather than simply duplicating data.
+	- Support <Link template/> attribute via a special datatype and special predicate URI scheme.
+	- Support for IANA keywords in <Link rel/> attribute.
+	- Map XRD <Expires/> element to the RDF URI <http://ontologi.es/xrd#expires>.

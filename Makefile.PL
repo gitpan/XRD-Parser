@@ -19,6 +19,7 @@ requires            'RDF::Trine'     => 0;
 requires            'LWP::Simple'    => 0;
 requires            'URI::Escape'    => 0;
 requires            'URI'            => 0;
+requires            'HTTP::Link::Parser' => '0.03';
 
 auto_install;
 
