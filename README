@@ -2,7 +2,7 @@ NAME
     XRD::Parser - Parse XRD files into RDF::Trine models
 
 VERSION
-    0.02
+    0.03
 
 SYNOPSIS
       use RDF::Query;
@@ -52,6 +52,15 @@ DESCRIPTION
 
             $storage is an RDF::Trine::Storage object. If undef, then a new
             temporary store is created.
+
+    $p = XRD::Parser->hostmeta($uri);
+            This method creates a new XRD::Parser object and returns it.
+
+            The parameter may be a URI (from which the hostname will be
+            extracted) or just a bare host name (e.g. "example.com"). The
+            resource "/.well-known/host-meta" will then be fetched from that
+            host using an appropriate HTTP Accept header, and the parser
+            object returned.
 
     $p->uri Returns the base URI of the document being parsed. This will
             usually be the same as the base URI provided to the constructor.

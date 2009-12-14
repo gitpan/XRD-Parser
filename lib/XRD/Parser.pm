@@ -6,22 +6,35 @@ XRD::Parser - Parse XRD files into RDF::Trine models
 
 =head1 VERSION
 
-0.02
+0.03
 
 =cut
 
 use 5.008001;
 use strict;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
+use Carp;
 use Encode qw(encode_utf8);
 use HTTP::Link::Parser;
-use LWP::Simple;
+use LWP::UserAgent;
 use RDF::Trine;
 use URI::Escape;
 use URI::URL;
 use XML::LibXML qw(:all);
+
+use constant NS_HOSTMETA => 'http://host-meta.net/ns/1.0';
+use constant NS_XML      => XML::LibXML::XML_XML_NS;
+use constant NS_XRD      => 'http://docs.oasis-open.org/ns/xri/xrd-1.0';
+use constant URI_DCTERMS => 'http://purl.org/dc/terms/';
+use constant URI_FOAF    => 'http://xmlns.com/foaf/0.1/';
+use constant URI_HOST    => 'http://ontologi.es/xrd#host:';
+use constant URI_RDF     => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+use constant URI_TYPES   => 'http://www.iana.org/assignments/media-types/';
+use constant URI_XRD     => 'http://ontologi.es/xrd#';
+use constant URI_XSD     => 'http://www.w3.org/2001/XMLSchema#';
+use constant SCHEME_TMPL => 'x-xrd+template+for:';
 
 =head1 SYNOPSIS
 
@@ -89,7 +102,15 @@ sub new
 	
 	unless (defined $content)
 	{
-		$content = &get($baseuri);
+		my $ua = LWP::UserAgent->new;
+		$ua->agent(sprintf('%s/%s ', __PACKAGE__, $VERSION));
+		$ua->default_header("Accept" => "application/xrd+xml, application/xml;q=0.1, text/xml;q=0.1");
+		my $response = $ua->get($baseuri);
+		carp "HTTP response not successful\n"
+			unless $response->is_success;
+		carp "Non-XRD HTTP response\n"
+			unless $response->content_type =~ m`^(text/xml)|(application/(xrd\+xml|xml))$`;
+		$content = $response->decoded_content;
 	}
 	
 	if (UNIVERSAL::isa($content, 'XML::LibXML::Document'))
@@ -114,6 +135,31 @@ sub new
 		}, $class;
 	
 	return $self;
+}
+
+=item $p = XRD::Parser->hostmeta($uri);
+
+This method creates a new XRD::Parser object and returns it.
+
+The parameter may be a URI (from which the hostname will be extracted) or
+just a bare host name (e.g. "example.com"). The resource
+"/.well-known/host-meta" will then be fetched from that host using an
+appropriate HTTP Accept header, and the parser object returned.
+
+=cut
+
+sub hostmeta
+{
+	my $class = shift;
+	my $host  = shift;
+	
+	if ($host =~ /:/)
+	{
+		$host = url $host;
+		$host = $host->host;
+	}
+	
+	return $class->new(undef, "http://$host/.well-known/host-meta");
 }
 
 =item $p->uri
@@ -341,7 +387,7 @@ sub consume
 {
 	my $this = shift;
 	
-	my @xrds = $this->{'DOM'}->getElementsByTagName('XRD')->get_nodelist;
+	my @xrds = $this->{'DOM'}->getElementsByTagNameNS(NS_XRD, 'XRD')->get_nodelist;
 	
 	my $first = 1;
 	my $only  = defined $xrds[1] ? 1 : 0;
@@ -364,9 +410,9 @@ sub _consume_XRD
 	my $only  = shift;
 	
 	my $description_uri;
-	if ($xrd->hasAttributeNS(XML_XML_NS, 'id'))
+	if ($xrd->hasAttributeNS(NS_XML, 'id'))
 	{
-		$description_uri = $this->uri('#'.$xrd->getAttributeNS(XML_XML_NS, 'id'));
+		$description_uri = $this->uri('#'.$xrd->getAttributeNS(NS_XML, 'id'));
 	}
 	elsif ($only)
 	{
@@ -377,7 +423,7 @@ sub _consume_XRD
 		$description_uri = $this->bnode;
 	}
 			
-	my $subject_node = $xrd->getChildrenByTagName('Subject')->shift;
+	my $subject_node = $xrd->getChildrenByTagNameNS(NS_XRD, 'Subject')->shift;
 	my $subject;
 	my @subjects;
 	$subject = $this->uri(
@@ -386,11 +432,9 @@ sub _consume_XRD
 		if $subject_node;
 	push @subjects, $subject
 		if defined $subject;
-	foreach my $host_node ($xrd->getChildrenByTagNameNS(
-		'http://host-meta.net/ns/1.0', 'Host')->get_nodelist)
+	foreach my $host_node ($xrd->getChildrenByTagNameNS(NS_HOSTMETA, 'Host')->get_nodelist)
 	{
-		my $host_uri = 'http://ontologi.es/xrd#host:'
-			. $this->stringify($host_node);
+		my $host_uri = URI_HOST . $this->stringify($host_node);
 		$subject = $host_uri
 			unless defined $subject;
 		push @subjects, $host_uri;
@@ -401,38 +445,28 @@ sub _consume_XRD
 		push @subjects, $subject;
 	}
 	
-	$this->rdf_triple(
-		$xrd,
-		$description_uri,
-		'http://xmlns.com/foaf/0.1/primaryTopic',
-		$subject);
-	foreach my $alias ( $xrd->getChildrenByTagName('Alias')->get_nodelist )
+	$this->rdf_triple($xrd, $description_uri, URI_FOAF.'primaryTopic', $subject);
+	
+	foreach my $alias ( $xrd->getChildrenByTagNameNS(NS_XRD, 'Alias')->get_nodelist )
 	{
-		$this->rdf_triple(
-			$alias,
-			$subject,
-			'http://ontologi.es/xrd#alias',
-			$this->uri($this->stringify($alias),{'require-absolute'=>1}) );
+		my $alias_uri = $this->uri($this->stringify($alias),{'require-absolute'=>1});
+		$this->rdf_triple($alias, $subject, URI_XRD.'alias', $alias_uri);
 	}
 	
-	my $expires_node = $xrd->getChildrenByTagName('Expires')->shift;
-	my $expires      = $this->stringify($expires_node);
+	my $expires_node = $xrd->getChildrenByTagNameNS(NS_XRD, 'Expires')->shift;
+	my $expires      = $this->stringify($expires_node) if $expires_node;
 	if (length $expires)
 	{
-		$this->rdf_triple_literal(
-			$expires_node,
-			$description_uri,
-			'http://ontologi.es/xrd#expires',
-			$expires,
-			'http://www.w3.org/2001/XMLSchema#dateTime');
+		$this->rdf_triple_literal($expires_node,
+			$description_uri, URI_XRD.'expires', $expires, URI_XSD.'dateTime');
 	}
 	
-	foreach my $p ($xrd->getChildrenByTagName('Property')->get_nodelist)
+	foreach my $p ($xrd->getChildrenByTagNameNS(NS_XRD, 'Property')->get_nodelist)
 	{
 		$this->_consume_Property($p, \@subjects);
 	}
 	
-	foreach my $l ($xrd->getChildrenByTagName('Link')->get_nodelist)
+	foreach my $l ($xrd->getChildrenByTagNameNS(NS_XRD, 'Link')->get_nodelist)
 	{
 		$this->_consume_Link($l, \@subjects);
 	}
@@ -480,9 +514,9 @@ sub _consume_Link
 	elsif ($l->hasAttribute('template'))
 	{
 		push @value, $l->getAttribute('template');
-		push @value, 'http://ontologi.es/xrd#URITemplate';
+		push @value, URI_XRD . 'URITemplate';
 		$value_type = 'template';
-		$property_uri = "x-xrd+template+for:$property_uri";
+		$property_uri = SCHEME_TMPL . $property_uri;
 	}
 	else
 	{
@@ -513,32 +547,28 @@ sub _consume_Link
 	{
 		my $type = $l->getAttribute('type');
 		if (defined $type)
-		{
-			$this->rdf_triple(
-				$l,
-				@value,
-				'http://purl.org/dc/terms/format',
-				'http://www.iana.org/assignments/media-types/'.$type);
+		{####TODO
+			$this->rdf_triple($l, @value, URI_DCTERMS.'format', URI_TYPES.$type);
 		}
 		
 		foreach my $title ($l->getChildrenByTagName('Title')->get_nodelist)
 		{
 			my $lang = undef;
-			if ($title->hasAttributeNS(XML_XML_NS, 'lang'))
+			if ($title->hasAttributeNS(NS_XML, 'lang'))
 			{
-				$lang = $title->getAttributeNS(XML_XML_NS, 'lang');
+				$lang = $title->getAttributeNS(NS_XML, 'lang');
 				$lang = undef unless valid_lang($lang);
 			}
 			$this->rdf_triple_literal(
 				$title,
 				@value,
-				'http://purl.org/dc/terms/title',
+				URI_DCTERMS.'title',
 				$this->stringify($title),
 				undef,
 				$lang);
 		}
 		
-		foreach my $lp ($l->getChildrenByTagName('Property')->get_nodelist)
+		foreach my $lp ($l->getChildrenByTagNameNS(NS_XRD, 'Property')->get_nodelist)
 		{
 			$this->_consume_Link_Property($lp, $S, $property_uri, @value);
 		}
@@ -563,31 +593,11 @@ sub _consume_Link_Property
 	{
 		my $reified_statement = $this->bnode($lp);
 		
-		$this->rdf_triple(
-			$lp,
-			$reified_statement,
-			'http://www.w3.org/1999/02/22-rdf-syntax-ns#type',
-			'http://www.w3.org/1999/02/22-rdf-syntax-ns#Statement');			
-		$this->rdf_triple(
-			$lp,
-			$reified_statement,
-			'http://www.w3.org/1999/02/22-rdf-syntax-ns#subject',
-			$subject_uri);
-		$this->rdf_triple(
-			$lp,
-			$reified_statement,
-			'http://www.w3.org/1999/02/22-rdf-syntax-ns#predicate',
-			$p);
-		$this->rdf_triple(
-			$lp,
-			$reified_statement,
-			'http://www.w3.org/1999/02/22-rdf-syntax-ns#object',
-			$o);
-		$this->rdf_triple_literal(
-			$lp,
-			$reified_statement,
-			$property_uri,
-			$value);
+		$this->rdf_triple($lp, $reified_statement, URI_RDF.'type', URI_RDF.'Statement');			
+		$this->rdf_triple($lp, $reified_statement, URI_RDF.'subject', $subject_uri);
+		$this->rdf_triple($lp, $reified_statement, URI_RDF.'predicate', $p);
+		$this->rdf_triple($lp, $reified_statement, URI_RDF.'object', $o);
+		$this->rdf_triple_literal($lp, $reified_statement, $property_uri, $value);
 	}
 }
 
@@ -797,9 +807,9 @@ sub xmlify
 		my $fakelang = 0;
 		if (($kid->nodeType == XML_ELEMENT_NODE) && defined $lang)
 		{
-			unless ($kid->hasAttributeNS(XML_XML_NS, 'lang'))
+			unless ($kid->hasAttributeNS(NS_XML, 'lang'))
 			{
-				$kid->setAttributeNS(XML_XML_NS, 'lang', $lang);
+				$kid->setAttributeNS(NS_XML, 'lang', $lang);
 				$fakelang++;
 			}
 		}
@@ -808,7 +818,7 @@ sub xmlify
 		
 		if ($fakelang)
 		{
-			$kid->removeAttributeNS(XML_XML_NS, 'lang');
+			$kid->removeAttributeNS(NS_XML, 'lang');
 		}
 	}
 	
@@ -823,8 +833,8 @@ sub bnode
 	
 	return sprintf('http://thing-described-by.org/?%s#%s',
 		$this->uri,
-		$element->getAttributeNS(XML_XML_NS, 'id'))
-		if ($this->{options}->{tdb_service} && $element && length $element->getAttributeNS(XML_XML_NS, 'id'));
+		$element->getAttributeNS(NS_XML, 'id'))
+		if ($this->{options}->{tdb_service} && $element && length $element->getAttributeNS(NS_XML, 'id'));
 
 	return sprintf('_:RDFaAutoNode%03d', $this->{bnodes}++);
 }

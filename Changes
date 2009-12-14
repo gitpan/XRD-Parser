@@ -10,3 +10,8 @@ Revision history for Perl extension XRD::Parser.
 	- Support <Link template/> attribute via a special datatype and special predicate URI scheme.
 	- Support for IANA keywords in <Link rel/> attribute.
 	- Map XRD <Expires/> element to the RDF URI <http://ontologi.es/xrd#expires>.
+
+0.03
+	- Provide an XRD::Parser->hostmeta($uri) shortcut constructor.
+	- Send proper HTTP Accept header when requesting XRD files.
+	- Prefer namespace-aware DOM functions.
