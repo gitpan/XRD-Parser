@@ -21,12 +21,12 @@ requires            'URI::Escape'    => 0;
 requires            'URI'            => 0;
 requires            'HTTP::Link::Parser' => '0.03';
 
+auto_set_homepage;
+auto_set_bugtracker;
+
+include 'Test::Signature';
 auto_install;
-
-sign;
-
-WriteAll;
-
-use Pod::Text;
-my $parser = Pod::Text->new (sentence => 0, width => 78);
-$parser->parse_from_file('lib/XRD/Parser.pm', 'README');
+WriteAll(
+	'meta' => 1,
+	'sign' => 1,
+	);

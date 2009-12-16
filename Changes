@@ -15,3 +15,9 @@ Revision history for Perl extension XRD::Parser.
 	- Provide an XRD::Parser->hostmeta($uri) shortcut constructor.
 	- Send proper HTTP Accept header when requesting XRD files.
 	- Prefer namespace-aware DOM functions.
+
+0.04
+	- Minor bugfixes.
+	- Support http://host-meta.net/xrd/1.0 and http://host-meta.net/ns/1.0 as alternatives.
+	- Don't reify <Link> elements multiple times for multiple <Property> children.
+	- Parse <Property> children of <Link template> elements.

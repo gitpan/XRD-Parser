@@ -1,8 +1,8 @@
 NAME
-    XRD::Parser - Parse XRD files into RDF::Trine models
+    XRD::Parser - Parse XRD and host-meta files into RDF::Trine models
 
 VERSION
-    0.03
+    0.04
 
 SYNOPSIS
       use RDF::Query;
@@ -19,6 +19,11 @@ SYNOPSIS
       {
         print $result->{'auth'}->uri . "\n";
       }
+
+      my $data = XRD::Parser->hostmeta('gmail.com')
+                              ->consume
+                                ->graph
+                                  ->as_hashref;
 
 DESCRIPTION
     While XRD has a rather different history, it turns out it can mostly be
@@ -126,6 +131,8 @@ DESCRIPTION
     $p->consume;
             This method processes the input DOM and sends the resulting
             triples to the callback functions (if any).
+
+            Returns the parser object itself.
 
     $p->graph()
             This method will return an RDF::Trine::Model object with all

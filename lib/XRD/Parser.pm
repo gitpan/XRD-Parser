@@ -2,18 +2,18 @@ package XRD::Parser;
 
 =head1 NAME
 
-XRD::Parser - Parse XRD files into RDF::Trine models
+XRD::Parser - Parse XRD and host-meta files into RDF::Trine models
 
 =head1 VERSION
 
-0.03
+0.04
 
 =cut
 
 use 5.008001;
 use strict;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 use Carp;
 use Encode qw(encode_utf8);
@@ -25,6 +25,7 @@ use URI::URL;
 use XML::LibXML qw(:all);
 
 use constant NS_HOSTMETA => 'http://host-meta.net/ns/1.0';
+use constant NS_HOSTMETX => 'http://host-meta.net/xrd/1.0';
 use constant NS_XML      => XML::LibXML::XML_XML_NS;
 use constant NS_XRD      => 'http://docs.oasis-open.org/ns/xri/xrd-1.0';
 use constant URI_DCTERMS => 'http://purl.org/dc/terms/';
@@ -52,6 +53,11 @@ use constant SCHEME_TMPL => 'x-xrd+template+for:';
   {
     print $result->{'auth'}->uri . "\n";
   }
+
+  my $data = XRD::Parser->hostmeta('gmail.com')
+                          ->consume
+                            ->graph
+                              ->as_hashref;
 
 =head1 DESCRIPTION
 
@@ -106,9 +112,10 @@ sub new
 		$ua->agent(sprintf('%s/%s ', __PACKAGE__, $VERSION));
 		$ua->default_header("Accept" => "application/xrd+xml, application/xml;q=0.1, text/xml;q=0.1");
 		my $response = $ua->get($baseuri);
-		carp "HTTP response not successful\n"
+		use Data::Dumper;
+		croak "HTTP response not successful\n"
 			unless $response->is_success;
-		carp "Non-XRD HTTP response\n"
+		croak "Non-XRD HTTP response\n"
 			unless $response->content_type =~ m`^(text/xml)|(application/(xrd\+xml|xml))$`;
 		$content = $response->decoded_content;
 	}
@@ -152,7 +159,7 @@ sub hostmeta
 {
 	my $class = shift;
 	my $host  = shift;
-	
+
 	if ($host =~ /:/)
 	{
 		$host = url $host;
@@ -381,6 +388,8 @@ sub _print1
 This method processes the input DOM and sends the resulting triples to 
 the callback functions (if any).
 
+Returns the parser object itself.
+
 =cut
 
 sub consume
@@ -432,12 +441,17 @@ sub _consume_XRD
 		if $subject_node;
 	push @subjects, $subject
 		if defined $subject;
-	foreach my $host_node ($xrd->getChildrenByTagNameNS(NS_HOSTMETA, 'Host')->get_nodelist)
+	NAMESPACE: foreach my $hostmeta_ns (@{[NS_HOSTMETA, NS_HOSTMETX]})
 	{
-		my $host_uri = URI_HOST . $this->stringify($host_node);
-		$subject = $host_uri
-			unless defined $subject;
-		push @subjects, $host_uri;
+		my $host_uri;
+		ELEMENT: foreach my $host_node ($xrd->getChildrenByTagNameNS($hostmeta_ns, 'Host')->get_nodelist)
+		{
+			$host_uri = URI_HOST . $this->stringify($host_node);
+			$subject = $host_uri
+				unless defined $subject;
+			push @subjects, $host_uri;
+		}
+		last NAMESPACE if $host_uri;
 	}
 	unless (@subjects)
 	{
@@ -547,7 +561,7 @@ sub _consume_Link
 	{
 		my $type = $l->getAttribute('type');
 		if (defined $type)
-		{####TODO
+		{
 			$this->rdf_triple($l, @value, URI_DCTERMS.'format', URI_TYPES.$type);
 		}
 		
@@ -566,40 +580,36 @@ sub _consume_Link
 				$this->stringify($title),
 				undef,
 				$lang);
-		}
-		
-		foreach my $lp ($l->getChildrenByTagNameNS(NS_XRD, 'Property')->get_nodelist)
-		{
-			$this->_consume_Link_Property($lp, $S, $property_uri, @value);
-		}
-	}	
-}
-
-sub _consume_Link_Property
-{
-	my $this   = shift;
-	my $lp     = shift;
-	my $S      = shift;
-	my $p      = shift;
-	my $o      = shift;
+		}		
+	}
 	
-	my $property_uri = $this->uri(
-		$lp->getAttribute('type'), {'require-absolute'=>1});
-	return unless $property_uri;
-	
-	my $value = $this->stringify($lp);
-
 	foreach my $subject_uri (@$S)
 	{
-		my $reified_statement = $this->bnode($lp);
-		
-		$this->rdf_triple($lp, $reified_statement, URI_RDF.'type', URI_RDF.'Statement');			
-		$this->rdf_triple($lp, $reified_statement, URI_RDF.'subject', $subject_uri);
-		$this->rdf_triple($lp, $reified_statement, URI_RDF.'predicate', $p);
-		$this->rdf_triple($lp, $reified_statement, URI_RDF.'object', $o);
-		$this->rdf_triple_literal($lp, $reified_statement, $property_uri, $value);
+		my @link_properties = $l->getChildrenByTagNameNS(NS_XRD, 'Property')->get_nodelist;
+		if (@link_properties)
+		{
+			my $reified_statement = $this->bnode($l);		
+			$this->rdf_triple($l, $reified_statement, URI_RDF.'type', URI_RDF.'Statement');			
+			$this->rdf_triple($l, $reified_statement, URI_RDF.'subject', $subject_uri);
+			$this->rdf_triple($l, $reified_statement, URI_RDF.'predicate', $property_uri);
+			
+			if ($value_type eq 'href')
+			{
+				$this->rdf_triple($l, $reified_statement, URI_RDF.'object', @value);
+			}
+			else
+			{
+				$this->rdf_triple_literal($l, $reified_statement, URI_RDF.'object', @value);
+			}
+			
+			foreach my $lp (@link_properties)
+			{
+				$this->_consume_Property($lp, [$reified_statement]);
+			}
+		}
 	}
 }
+
 
 =item $p->graph() 
 
