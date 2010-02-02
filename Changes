@@ -1,23 +1,47 @@
-Revision history for Perl extension XRD::Parser.
+############################################################################
+## Changes #################################################################
+############################################################################
 
-0.01  Fri Dec  4 16:40:29 2009
-	- original version; created by h2xs 1.23 with options
-		-A -X -b 5.8.1 --skip-exporter --skip-autoloader --skip-warnings -n XRD::Parser
+XRD-Parser
+==========
 
-0.02
-	- Support for host-meta's <hm:Host/> element as a way to set subjects.
-	- Implement <Alias/> element as an owl:sameAs-like predicate rather than simply duplicating data.
-	- Support <Link template/> attribute via a special datatype and special predicate URI scheme.
-	- Support for IANA keywords in <Link rel/> attribute.
-	- Map XRD <Expires/> element to the RDF URI <http://ontologi.es/xrd#expires>.
+Created:      2009-12-04
+Home page:    <http://search.cpan.org/dist/XRD-Parser/>
+Bug tracker:  <http://rt.cpan.org/Dist/Display.html?Queue=XRD-Parser>
+Maintainer:   Toby Inkster <mailto:tobyink@cpan.org>
+
+0.05 [2010-02-02]
+ - (Update) Synchronise callback functionality with RDF::RDFa::Parser 0.30.
+ - Provide an alternative method of handling <Property> within <Link>: RDFS
+   subproperties.
+ - (Update) Switch to my new build system.
+ - (Update) Copyright 2010
+ - (Addition) host_uri and template_uri utility functions.
+ - Allow both methods of handling <Property> within <Link> to be toggled
+   independently.
+
+0.04 [2009-12-16]
+ - Don't reify <Link> elements multiple times for multiple <Property>
+   children.
+ - Support http://host-meta.net/xrd/1.0 and http://host-meta.net/ns/1.0 as
+   alternatives.
+ - Parse <Property> children of <Link template> elements.
 
 0.03
-	- Provide an XRD::Parser->hostmeta($uri) shortcut constructor.
-	- Send proper HTTP Accept header when requesting XRD files.
-	- Prefer namespace-aware DOM functions.
+ - Send proper HTTP Accept header when requesting XRD files.
+ - (Addition) Provide an XRD::Parser->hostmeta($uri) shortcut constructor.
+ - Prefer namespace-aware DOM functions.
 
-0.04
-	- Minor bugfixes.
-	- Support http://host-meta.net/xrd/1.0 and http://host-meta.net/ns/1.0 as alternatives.
-	- Don't reify <Link> elements multiple times for multiple <Property> children.
-	- Parse <Property> children of <Link template> elements.
+0.02
+ - (Addition) Support for host-meta's <hm:Host/> element as a way to set
+   subjects.
+ - (Addition) Support for IANA keywords in <Link rel/> attribute.
+ - Map XRD <Expires/> element to the RDF URI
+   <http://ontologi.es/xrd#expires>.
+ - Implement <Alias/> element as an owl:sameAs-like predicate rather than
+   simply duplicating data.
+ - (Addition) Support <Link template/> attribute via a special datatype and
+   special predicate URI scheme.
+
+0.01 # First release
+

@@ -1,5 +1,5 @@
 ---
-abstract: 'Parse XRD and host-meta files into RDF::Trine models'
+abstract: 'parse XRD and host-meta files into RDF::Trine models'
 author:
   - 'Toby Inkster <tobyink@cpan.org>'
 build_requires:
@@ -26,9 +26,10 @@ requires:
   URI: 0
   URI::Escape: 0
   XML::LibXML: 0
-  perl: 5.8.1
+  perl: 5.8.0
 resources:
-  bugtracker: http://search.cpan.org/dist/XRD-Parser/
+  bugtracker: http://rt.cpan.org/Dist/Display.html?Queue=XRD-Parser
   homepage: http://search.cpan.org/dist/XRD-Parser/
   license: http://dev.perl.org/licenses/
-version: 0.04
+  repository: http://goddamn.co.uk/viewvc/perlmods/XRD-Parser/
+version: 0.05

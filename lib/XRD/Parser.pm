@@ -1,41 +1,6 @@
-package XRD::Parser;
-
 =head1 NAME
 
-XRD::Parser - Parse XRD and host-meta files into RDF::Trine models
-
-=head1 VERSION
-
-0.04
-
-=cut
-
-use 5.008001;
-use strict;
-
-our $VERSION = '0.04';
-
-use Carp;
-use Encode qw(encode_utf8);
-use HTTP::Link::Parser;
-use LWP::UserAgent;
-use RDF::Trine;
-use URI::Escape;
-use URI::URL;
-use XML::LibXML qw(:all);
-
-use constant NS_HOSTMETA => 'http://host-meta.net/ns/1.0';
-use constant NS_HOSTMETX => 'http://host-meta.net/xrd/1.0';
-use constant NS_XML      => XML::LibXML::XML_XML_NS;
-use constant NS_XRD      => 'http://docs.oasis-open.org/ns/xri/xrd-1.0';
-use constant URI_DCTERMS => 'http://purl.org/dc/terms/';
-use constant URI_FOAF    => 'http://xmlns.com/foaf/0.1/';
-use constant URI_HOST    => 'http://ontologi.es/xrd#host:';
-use constant URI_RDF     => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
-use constant URI_TYPES   => 'http://www.iana.org/assignments/media-types/';
-use constant URI_XRD     => 'http://ontologi.es/xrd#';
-use constant URI_XSD     => 'http://www.w3.org/2001/XMLSchema#';
-use constant SCHEME_TMPL => 'x-xrd+template+for:';
+XRD::Parser - parse XRD and host-meta files into RDF::Trine models
 
 =head1 SYNOPSIS
 
@@ -59,6 +24,46 @@ use constant SCHEME_TMPL => 'x-xrd+template+for:';
                             ->graph
                               ->as_hashref;
 
+=cut
+
+package XRD::Parser;
+
+use 5.008;
+use strict;
+
+=head1 VERSION
+
+0.05
+
+=cut
+
+our $VERSION = '0.05';
+
+use Carp;
+use Digest::SHA1 qw(sha1_hex);
+use Encode qw(encode_utf8);
+use HTTP::Link::Parser;
+use LWP::UserAgent;
+use RDF::Trine;
+use URI::Escape;
+use URI::URL;
+use XML::LibXML qw(:all);
+
+use constant NS_HOSTMETA => 'http://host-meta.net/ns/1.0';
+use constant NS_HOSTMETX => 'http://host-meta.net/xrd/1.0';
+use constant NS_XML      => XML::LibXML::XML_XML_NS;
+use constant NS_XRD      => 'http://docs.oasis-open.org/ns/xri/xrd-1.0';
+use constant URI_DCTERMS => 'http://purl.org/dc/terms/';
+use constant URI_FOAF    => 'http://xmlns.com/foaf/0.1/';
+use constant URI_HOST    => 'http://ontologi.es/xrd#host:';
+use constant URI_RDF     => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+use constant URI_RDFS    => 'http://www.w3.org/2000/01/rdf-schema#';
+use constant URI_SUBLINK => 'http://ontologi.es/xrd#sublink:';
+use constant URI_TYPES   => 'http://www.iana.org/assignments/media-types/';
+use constant URI_XRD     => 'http://ontologi.es/xrd#';
+use constant URI_XSD     => 'http://www.w3.org/2001/XMLSchema#';
+use constant SCHEME_TMPL => 'x-xrd+template+for:';
+
 =head1 DESCRIPTION
 
 While XRD has a rather different history, it turns out it can mostly
@@ -74,9 +79,11 @@ callback routines allowed by this package may be of use.
 This package aims to be roughly compatible with RDF::RDFa::Parser's
 interface.
 
-=over 8
+=head2 Constructors
 
-=item $p = XRD::Parser->new($content, $uri, \%options, $store);
+=over 4
+
+=item C<< $p = XRD::Parser->new($content, $uri, \%options, $store) >>
 
 This method creates a new XRD::Parser object and returns it.
 
@@ -90,7 +97,9 @@ to retrieve $uri using LWP::Simple.
 
 Options [default in brackets]:
 
-  * tdb_service     - thing-described-by.org when possible. [0] 
+  * link_prop       - How to handle <Property> in <Link>? [0]
+                      0=skip, 1=reify, 2=subproperty, 3=both.
+  * tdb_service     - thing-described-by.org when possible. [0]
 
 $storage is an RDF::Trine::Storage object. If undef, then a new
 temporary store is created.
@@ -144,7 +153,7 @@ sub new
 	return $self;
 }
 
-=item $p = XRD::Parser->hostmeta($uri);
+=item C<< $p = XRD::Parser->hostmeta($uri) >>
 
 This method creates a new XRD::Parser object and returns it.
 
@@ -166,10 +175,24 @@ sub hostmeta
 		$host = $host->host;
 	}
 	
-	return $class->new(undef, "http://$host/.well-known/host-meta");
+	my $rv;
+	
+	eval { $rv = $class->new(undef, "https://$host/.well-known/host-meta"); };
+	return $rv if $rv;
+	
+	eval { $rv = $class->new(undef, "http://$host/.well-known/host-meta"); } ;
+	return $rv if $rv;
+	
+	return undef;
 }
 
-=item $p->uri
+=back
+
+=head2 Public Methods
+
+=over 4
+
+=item C<< $p->uri($uri) >>
 
 Returns the base URI of the document being parsed. This will usually be the
 same as the base URI provided to the constructor.
@@ -224,7 +247,7 @@ sub uri
 	return $rv;
 }
 
-=item $p->dom
+=item C<< $p->dom >>
 
 Returns the parsed XML::LibXML::Document.
 
@@ -236,58 +259,25 @@ sub dom
 	return $this->{DOM};
 }
 
-=item $p->set_callbacks(\&func1, \&func2)
+=item $p->set_callbacks(\%callbacks)
 
-Set callbacks for handling RDF triples extracted from the document. The
-first function is called when a triple is generated taking the form of
-(I<resource>, I<resource>, I<resource>). The second function is called when a
-triple is generated taking the form of (I<resource>, I<resource>, I<literal>).
+Set callback functions for the parser to call on certain events. These are only necessary if
+you want to do something especially unusual.
 
-The parameters passed to the first callback function are:
+  $p->set_callbacks({
+    'pretriple_resource' => sub { ... } ,
+    'pretriple_literal'  => sub { ... } ,
+    'ontriple'           => undef ,
+    });
 
-=over 4
+Either of the two pretriple callbacks can be set to the string 'print' instead of a coderef.
+This enables built-in callbacks for printing Turtle to STDOUT.
 
-=item * A reference to the C<XRD::Parser> object
+For details of the callback functions, see the section CALLBACKS. C<set_callbacks> must
+be used I<before> C<consume>. C<set_callbacks> itself returns a reference to the parser
+object itself.
 
-=item * A reference to the C<XML::LibXML element> being parsed
-
-=item * Subject URI or bnode
-
-=item * Predicate URI
-
-=item * Object URI or bnode
-
-=back
-
-The parameters passed to the second callback function are:
-
-=over 4
-
-=item * A reference to the C<XRD::Parser> object
-
-=item * A reference to the C<XML::LibXML element> being parsed
-
-=item * Subject URI or bnode
-
-=item * Predicate URI
-
-=item * Object literal
-
-=item * Datatype URI (possibly undef or '')
-
-=item * Language (possibly undef or '')
-
-=back
-
-In place of either or both functions you can use the string C<'print'> which
-sets the callback to a built-in function which prints the triples to STDOUT
-as Turtle. Either or both can be set to undef, in which case, no callback
-is called when a triple is found.
-
-Beware that for literal callbacks, sometimes both a datatype *and* a language
-will be passed. (This goes beyond the normal RDF data model.)
-
-C<set_callbacks> (if used) must be used I<before> C<consume>.
+I<NOTE:> the behaviour of this function was changed in version 0.05.
 
 =cut
 
@@ -296,15 +286,24 @@ sub set_callbacks
 {
 	my $this = shift;
 
-	for (my $n=0 ; $n<2 ; $n++)
+	if ('HASH' eq ref $_[0])
 	{
-		if (lc($_[$n]) eq 'print')
-			{ $this->{'sub'}->[$n] = ($n==0 ? \&_print0 : \&_print1); }
-		elsif ('CODE' eq ref $_[$n])
-			{ $this->{'sub'}->[$n] = $_[$n]; }
-		else
-			{ $this->{'sub'}->[$n] = undef; }
+		$this->{'sub'} = $_[0];
+		$this->{'sub'}->{'pretriple_resource'} = \&_print0
+			if lc $this->{'sub'}->{'pretriple_resource'} eq 'print';
+		$this->{'sub'}->{'pretriple_literal'} = \&_print1
+			if lc $this->{'sub'}->{'pretriple_literal'} eq 'print';
 	}
+	elsif (defined $_[0])
+	{
+		die("What kind of callback hashref was that??\n");
+	}
+	else
+	{
+		$this->{'sub'} = undef;
+	}
+	
+	return $this;
 }
 
 sub _print0
@@ -383,7 +382,7 @@ sub _print1
 	return undef;
 }
 
-=item $p->consume;
+=item C<< $p->consume >>
 
 This method processes the input DOM and sends the resulting triples to 
 the callback functions (if any).
@@ -399,7 +398,7 @@ sub consume
 	my @xrds = $this->{'DOM'}->getElementsByTagNameNS(NS_XRD, 'XRD')->get_nodelist;
 	
 	my $first = 1;
-	my $only  = defined $xrds[1] ? 1 : 0;
+	my $only  = (scalar @xrds == 1) ? 1 : 0;
 	
 	foreach my $XRD (@xrds)
 	{
@@ -415,8 +414,8 @@ sub _consume_XRD
 {
 	my $this  = shift;
 	my $xrd   = shift;
-	my $first = shift;
-	my $only  = shift;
+	my $first = shift || 0;
+	my $only  = shift || 0;
 	
 	my $description_uri;
 	if ($xrd->hasAttributeNS(NS_XML, 'id'))
@@ -446,7 +445,7 @@ sub _consume_XRD
 		my $host_uri;
 		ELEMENT: foreach my $host_node ($xrd->getChildrenByTagNameNS($hostmeta_ns, 'Host')->get_nodelist)
 		{
-			$host_uri = URI_HOST . $this->stringify($host_node);
+			$host_uri = host_uri($this->stringify($host_node));
 			$subject = $host_uri
 				unless defined $subject;
 			push @subjects, $host_uri;
@@ -520,17 +519,20 @@ sub _consume_Link
 	
 	my @value;
 	my $value_type;
+	my ($p1,$p2);
 	if ($l->hasAttribute('href'))
 	{
 		push @value, $this->uri($l->getAttribute('href'));
 		$value_type = 'href';
+		($p1,$p2) = ('', $property_uri);
 	}
 	elsif ($l->hasAttribute('template'))
 	{
 		push @value, $l->getAttribute('template');
 		push @value, URI_XRD . 'URITemplate';
 		$value_type = 'template';
-		$property_uri = SCHEME_TMPL . $property_uri;
+		($p1,$p2) = (SCHEME_TMPL, $property_uri);
+		$property_uri = template_uri($property_uri);
 	}
 	else
 	{
@@ -588,30 +590,63 @@ sub _consume_Link
 		my @link_properties = $l->getChildrenByTagNameNS(NS_XRD, 'Property')->get_nodelist;
 		if (@link_properties)
 		{
-			my $reified_statement = $this->bnode($l);		
-			$this->rdf_triple($l, $reified_statement, URI_RDF.'type', URI_RDF.'Statement');			
-			$this->rdf_triple($l, $reified_statement, URI_RDF.'subject', $subject_uri);
-			$this->rdf_triple($l, $reified_statement, URI_RDF.'predicate', $property_uri);
-			
-			if ($value_type eq 'href')
+			if ($this->{'options'}->{'link_prop'} & 1)
 			{
-				$this->rdf_triple($l, $reified_statement, URI_RDF.'object', @value);
+				my $reified_statement = $this->bnode($l);		
+				$this->rdf_triple($l, $reified_statement, URI_RDF.'type', URI_RDF.'Statement');			
+				$this->rdf_triple($l, $reified_statement, URI_RDF.'subject', $subject_uri);
+				$this->rdf_triple($l, $reified_statement, URI_RDF.'predicate', $property_uri);
+				
+				if ($value_type eq 'href')
+				{
+					$this->rdf_triple($l, $reified_statement, URI_RDF.'object', @value);
+				}
+				else
+				{
+					$this->rdf_triple_literal($l, $reified_statement, URI_RDF.'object', @value);
+				}
+				
+				foreach my $lp (@link_properties)
+				{
+					$this->_consume_Property($lp, [$reified_statement]);
+				}
 			}
-			else
+			if ($this->{'options'}->{'link_prop'} & 2)
 			{
-				$this->rdf_triple_literal($l, $reified_statement, URI_RDF.'object', @value);
-			}
-			
-			foreach my $lp (@link_properties)
-			{
-				$this->_consume_Property($lp, [$reified_statement]);
+				my $subPropUri = $p1 . URI_SUBLINK . uri_escape($p2);
+				my @modifiers;
+				foreach my $lp (@link_properties)
+				{
+					my $k = $this->uri($lp->getAttribute('type'), {'require-absolute'=>1});
+					my $v = $this->stringify($lp);
+					push @modifiers, sprintf('%s=%s', uri_escape($k), uri_escape($v))
+						if length $k;
+				}
+				my $supermodifier = join '&', sort @modifiers;
+				$subPropUri .= '/' . sha1_hex($supermodifier);
+				
+				if ($value_type eq 'href')
+				{
+					$this->rdf_triple($l, $subject_uri, $subPropUri, @value);
+				}
+				else
+				{
+					$this->rdf_triple_literal($l, $subject_uri, $subPropUri, @value);
+				}
+				
+				$this->rdf_triple($l, $subPropUri, URI_RDF.'type', URI_RDF.'Property');
+				$this->rdf_triple($l, $subPropUri, URI_RDFS.'subPropertyOf', $property_uri);
+				foreach my $lp (@link_properties)
+				{
+					$this->_consume_Property($lp, [$subPropUri]);
+				}
 			}
 		}
 	}
 }
 
 
-=item $p->graph() 
+=item C<< $p->graph >>
 
 This method will return an RDF::Trine::Model object with all
 statements of the full graph.
@@ -639,10 +674,8 @@ sub rdf_triple
 	my $this = shift;
 
 	my $suppress_triple = 0;
-	if ($this->{'sub'}->[0])
-	{
-		$suppress_triple = $this->{'sub'}->[0]($this, @_);
-	}
+	$suppress_triple = $this->{'sub'}->{'pretriple_resource'}($this, @_)
+		if defined $this->{'sub'}->{'pretriple_resource'};
 	return if $suppress_triple;
 	
 	my $element   = shift;  # A reference to the XML::LibXML element being parsed
@@ -672,10 +705,8 @@ sub rdf_triple_literal
 	my $this = shift;
 
 	my $suppress_triple = 0;
-	if ($this->{'sub'}->[1])
-	{
-		$suppress_triple = $this->{'sub'}->[1]($this, @_);
-	}
+	$suppress_triple = $this->{'sub'}->{'pretriple_literal'}($this, @_)
+		if defined $this->{'sub'}->{'pretriple_literal'};
 	return if $suppress_triple;
 
 	my $element   = shift;  # A reference to the XML::LibXML element being parsed
@@ -749,6 +780,8 @@ sub rdf_triple_common
 		$ts = RDF::Trine::Node::Resource->new($subject);
 	}
 
+	my $statement;
+
 	# If we are configured for it, and graph name can be found, add it.
 	if (ref($this->{'options'}->{'named_graphs'}) && ($graph))
 	{
@@ -764,23 +797,19 @@ sub rdf_triple_common
 			$tg = RDF::Trine::Node::Resource->new($graph);
 		}
 
-		my $statement = RDF::Trine::Statement::Quad->new($ts, $tp, $to, $tg);
-		$this->{RESULTS}->add_statement($statement);
-	
-		#if ($graph ne $this->{'options'}->{'named_graphs'}->{'default'})
-		#{
-		#	my $graph_statement = RDF::Trine::Statement::Quad->new($ts, $tp, $to, 
-		#		$this->{'options'}->{'named_graphs'}->{'default_trine'});
-		#	$this->{RESULTS}->add_statement($graph_statement,
-		#		$this->{'options'}->{'named_graphs'}->{'default_trine'});
-		#}
+		$statement = RDF::Trine::Statement::Quad->new($ts, $tp, $to, $tg);
 	}
 	else
 	{
-		# If no graph name, just add triples
-		my $statement = RDF::Trine::Statement->new($ts, $tp, $to);
-		$this->{RESULTS}->add_statement($statement);
+		$statement = RDF::Trine::Statement->new($ts, $tp, $to);
 	}
+
+	my $suppress_triple = 0;
+	$suppress_triple = $this->{'sub'}->{'ontriple'}($this, $element, $statement)
+		if ($this->{'sub'}->{'ontriple'});
+	return if $suppress_triple;
+
+	$this->{RESULTS}->add_statement($statement);
 }
 
 sub stringify
@@ -948,10 +977,126 @@ sub valid_lang
 	return $r;
 }
 
+=back
+
+=head2 Utility Functions
+
+=over 4
+
+=item C<< $uri = XRD::Parser::host_uri($uri) >>
+
+Returns a URI representing the host. These crop up often in host-meta
+files.
+
+=cut
+
+sub host_uri
+{
+	my $uri = shift;
+
+	if ($uri =~ /:/)
+	{
+		$uri = url $uri;
+		return URI_HOST . $uri->host;
+	}
+
+	return URI_HOST . $uri;
+}
+
+=item C<< $uri = XRD::Parser::template_uri($relationship_uri) >>
+
+Returns a URI representing not a normal relationship, but the
+relationship between a host and a template URI literal.
+
+=cut
+
+sub template_uri
+{
+	my $uri = shift;
+	return SCHEME_TMPL . $uri;
+}
+
 1;
 __END__
 
 =back
+
+=head1 CALLBACKS
+
+Several callback functions are provided. These may be set using the C<set_callbacks> function,
+which taskes a hashref of keys pointing to coderefs. The keys are named for the event to fire the
+callback on.
+
+=head2 pretriple_resource
+
+This is called when a triple has been found, but before preparing the triple for
+adding to the model. It is only called for triples with a non-literal object value.
+
+The parameters passed to the callback function are:
+
+=over 4
+
+=item * A reference to the C<XRD::Parser> object
+
+=item * A reference to the C<XML::LibXML::Element> being parsed
+
+=item * Subject URI or bnode (string)
+
+=item * Predicate URI (string)
+
+=item * Object URI or bnode (string)
+
+=back
+
+The callback should return 1 to tell the parser to skip this triple (not add it to
+the graph); return 0 otherwise.
+
+=head2 pretriple_literal
+
+This is the equivalent of pretriple_resource, but is only called for triples with a
+literal object value.
+
+The parameters passed to the callback function are:
+
+=over 4
+
+=item * A reference to the C<XRD::Parser> object
+
+=item * A reference to the C<XML::LibXML::Element> being parsed
+
+=item * Subject URI or bnode (string)
+
+=item * Predicate URI (string)
+
+=item * Object literal (string)
+
+=item * Datatype URI (string or undef)
+
+=item * Language (string or undef)
+
+=back
+
+The callback should return 1 to tell the parser to skip this triple (not add it to
+the graph); return 0 otherwise.
+
+=head2 ontriple
+
+This is called once a triple is ready to be added to the graph. (After the pretriple
+callbacks.) The parameters passed to the callback function are:
+
+=over 4
+
+=item * A reference to the C<XRD::Parser> object
+
+=item * A reference to the C<XML::LibXML::Element> being parsed
+
+=item * An RDF::Trine::Statement object.
+
+=back
+
+The callback should return 1 to tell the parser to skip this triple (not add it to
+the graph); return 0 otherwise. The callback may modify the RDF::Trine::Statement
+object.
 
 =head1 SEE ALSO
 
@@ -965,10 +1110,10 @@ Toby Inkster, E<lt>tobyink@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2009 by Toby Inkster
+Copyright (C) 2009-2010 by Toby Inkster
 
 This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8.1 or,
+it under the same terms as Perl itself, either Perl version 5.8 or,
 at your option, any later version of Perl 5 you may have available.
 
 

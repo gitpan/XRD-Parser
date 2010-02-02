@@ -3,13 +3,16 @@ use warnings;
 
 use inc::Module::Install;
 
-license             'perl';
+my $dist = 'XRD-Parser';
+my $fn   = "lib/$dist.pm"; $fn =~ s#-#/#g;
 
-name                'XRD-Parser';
+name                $dist;
+perl_version_from   $fn;
+version_from        $fn;
+abstract_from       $fn;
+readme_from         $fn;
 author              'Toby Inkster <tobyink@cpan.org>';
-perl_version_from   'lib/XRD/Parser.pm';
-version_from        'lib/XRD/Parser.pm';
-abstract_from       'lib/XRD/Parser.pm';
+license             'perl';
 
 test_requires       'Test::More' => '0.61';
 
@@ -21,8 +24,16 @@ requires            'URI::Escape'    => 0;
 requires            'URI'            => 0;
 requires            'HTTP::Link::Parser' => '0.03';
 
-auto_set_homepage;
-auto_set_bugtracker;
+# install_script 'fingerw';
+
+resources(
+	'homepage'   => "http://search.cpan.org/dist/$dist/",
+	'repository' => "http://goddamn.co.uk/viewvc/perlmods/$dist/",
+	'bugtracker' => "http://rt.cpan.org/Dist/Display.html?Queue=$dist",
+	);
+	
+write_doap_changes;
+write_doap_changes_xml;
 
 include 'Test::Signature';
 auto_install;
