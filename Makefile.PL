@@ -19,12 +19,9 @@ test_requires       'Test::More' => '0.61';
 requires            'LWP::UserAgent' => 0;
 requires            'XML::LibXML'    => 0;
 requires            'RDF::Trine'     => 0;
-requires            'LWP::Simple'    => 0;
 requires            'URI::Escape'    => 0;
 requires            'URI'            => 0;
 requires            'HTTP::Link::Parser' => '0.03';
-
-# install_script 'fingerw';
 
 resources(
 	'homepage'   => "http://search.cpan.org/dist/$dist/",

@@ -49,7 +49,8 @@ DESCRIPTION
 
         $uri the supposed URI of the content; it is used to resolve any
         relative URIs found in the XRD document. Also, if $content is empty,
-        then XRD::Parser will attempt to retrieve $uri using LWP::Simple.
+        then XRD::Parser will attempt to retrieve $uri using
+        LWPx::ParanoidAgent.
 
         Options [default in brackets]:
 

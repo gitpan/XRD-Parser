@@ -37,7 +37,7 @@ use strict;
 
 =cut
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 use Carp;
 use Digest::SHA1 qw(sha1_hex);
@@ -93,7 +93,7 @@ exception. XRD::Parser does not catch the exception.
 
 $uri the supposed URI of the content; it is used to resolve any relative URIs found
 in the XRD document. Also, if $content is empty, then XRD::Parser will attempt
-to retrieve $uri using LWP::Simple.
+to retrieve $uri using LWPx::ParanoidAgent.
 
 Options [default in brackets]:
 
@@ -120,10 +120,16 @@ sub new
 		my $ua = LWP::UserAgent->new;
 		$ua->agent(sprintf('%s/%s ', __PACKAGE__, $VERSION));
 		$ua->default_header("Accept" => "application/xrd+xml, application/xml;q=0.1, text/xml;q=0.1");
-		my $response = $ua->get($baseuri);
-		use Data::Dumper;
+		my $response;
+		my $timeout = $options->{timeout} || 60;
+		eval {
+			local $SIG{ALRM} = sub { die "TIME"; };
+			alarm $timeout;
+			$response = $ua->get($baseuri);
+			alarm 0;
+		};
 		croak "HTTP response not successful\n"
-			unless $response->is_success;
+			unless defined $response && $response->is_success;
 		croak "Non-XRD HTTP response\n"
 			unless $response->content_type =~ m`^(text/xml)|(application/(xrd\+xml|xml))$`;
 		$content = $response->decoded_content;
@@ -176,11 +182,11 @@ sub hostmeta
 	}
 	
 	my $rv;
-	
-	eval { $rv = $class->new(undef, "https://$host/.well-known/host-meta"); };
+
+	eval { $rv = $class->new(undef, "https://$host/.well-known/host-meta", {timeout=>10}); };
 	return $rv if $rv;
 	
-	eval { $rv = $class->new(undef, "http://$host/.well-known/host-meta"); } ;
+	eval { $rv = $class->new(undef, "http://$host/.well-known/host-meta", {timeout=>15}); } ;
 	return $rv if $rv;
 	
 	return undef;
@@ -1017,6 +1023,7 @@ sub template_uri
 }
 
 1;
+
 __END__
 
 =back

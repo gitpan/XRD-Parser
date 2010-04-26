@@ -20,7 +20,6 @@ no_index:
     - t
 requires:
   HTTP::Link::Parser: 0.03
-  LWP::Simple: 0
   LWP::UserAgent: 0
   RDF::Trine: 0
   URI: 0
@@ -32,4 +31,4 @@ resources:
   homepage: http://search.cpan.org/dist/XRD-Parser/
   license: http://dev.perl.org/licenses/
   repository: http://goddamn.co.uk/viewvc/perlmods/XRD-Parser/
-version: 0.05
+version: 0.06
