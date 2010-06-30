@@ -8,8 +8,6 @@ XRD::Parser - parse XRD and host-meta files into RDF::Trine models
   use XRD::Parser;
   
   my $parser = XRD::Parser->new(undef, "http://example.com/foo.xrd");
-  $parser->consume;
-  
   my $results = RDF::Query->new(
     "SELECT * WHERE {?who <http://spec.example.net/auth/1.0> ?auth.}")
     ->execute($parser->graph);
@@ -19,10 +17,11 @@ XRD::Parser - parse XRD and host-meta files into RDF::Trine models
     print $result->{'auth'}->uri . "\n";
   }
 
+or maybe:
+
   my $data = XRD::Parser->hostmeta('gmail.com')
-                          ->consume
-                            ->graph
-                              ->as_hashref;
+                          ->graph
+                            ->as_hashref;
 
 =cut
 
@@ -33,11 +32,11 @@ use strict;
 
 =head1 VERSION
 
-0.05
+0.100
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.100';
 
 use Carp;
 use Digest::SHA1 qw(sha1_hex);
@@ -45,6 +44,7 @@ use Encode qw(encode_utf8);
 use HTTP::Link::Parser;
 use LWP::UserAgent;
 use RDF::Trine;
+use Scalar::Util qw(blessed);
 use URI::Escape;
 use URI::URL;
 use XML::LibXML qw(:all);
@@ -92,13 +92,15 @@ If a string, the document is parsed using XML::LibXML::Parser, which may throw a
 exception. XRD::Parser does not catch the exception.
 
 $uri the supposed URI of the content; it is used to resolve any relative URIs found
-in the XRD document. Also, if $content is empty, then XRD::Parser will attempt
-to retrieve $uri using LWPx::ParanoidAgent.
+in the XRD document. Also, if $content is undef, then XRD::Parser will attempt
+to retrieve $uri using LWP::UserAgent.
 
 Options [default in brackets]:
 
+  * default_subject - If no <Subject> element. [undef]
   * link_prop       - How to handle <Property> in <Link>? [0]
                       0=skip, 1=reify, 2=subproperty, 3=both.
+  * loose_mime      - Accept text/plain & app/octet-stream. [0]
   * tdb_service     - thing-described-by.org when possible. [0]
 
 $storage is an RDF::Trine::Storage object. If undef, then a new
@@ -123,19 +125,21 @@ sub new
 		my $response;
 		my $timeout = $options->{timeout} || 60;
 		eval {
-			local $SIG{ALRM} = sub { die "TIME"; };
+			local $SIG{ALRM} = sub { die "Request timed out\n"; };
 			alarm $timeout;
 			$response = $ua->get($baseuri);
 			alarm 0;
 		};
+		croak $@ if $@;
 		croak "HTTP response not successful\n"
 			unless defined $response && $response->is_success;
 		croak "Non-XRD HTTP response\n"
-			unless $response->content_type =~ m`^(text/xml)|(application/(xrd\+xml|xml))$`;
+			unless $response->content_type =~ m`^(text/xml)|(application/(xrd\+xml|xml))$`
+			|| ($options->{'loose_mime'} && $response->content_type =~ m`^(text/plain)|(application/octet-stream)$`);
 		$content = $response->decoded_content;
 	}
 	
-	if (UNIVERSAL::isa($content, 'XML::LibXML::Document'))
+	if (blessed($content) && $content->isa('XML::LibXML::Document'))
 	{
 		($domtree, $content) = ($content, $content->toString);
 	}
@@ -177,16 +181,29 @@ sub hostmeta
 
 	if ($host =~ /:/)
 	{
-		$host = url $host;
-		$host = $host->host;
+		my $u = url $host;
+		if ($u->can('host'))
+		{
+			$host = $u->host;
+		}
+		elsif ($u->can('authority') && $u->authority =~ /\@/)
+		{
+			(undef, $host) = split /\@/, $u->authority;
+		}
+		elsif ($u->can('opaque') && $u->opaque =~ /\@/)
+		{
+			(undef, $host) = split /\@/, $u->opaque;
+		}
 	}
+
+	return undef unless $host;
 	
 	my $rv;
 
-	eval { $rv = $class->new(undef, "https://$host/.well-known/host-meta", {timeout=>10}); };
+	eval { $rv = $class->new(undef, "https://$host/.well-known/host-meta", {timeout=>10, loose_mime=>1,default_subject=>host_uri($host)}); };
 	return $rv if $rv;
 	
-	eval { $rv = $class->new(undef, "http://$host/.well-known/host-meta", {timeout=>15}); } ;
+	eval { $rv = $class->new(undef, "http://$host/.well-known/host-meta", {timeout=>15, loose_mime=>1,default_subject=>host_uri($host)}); } ;
 	return $rv if $rv;
 	
 	return undef;
@@ -265,6 +282,30 @@ sub dom
 	return $this->{DOM};
 }
 
+=item C<< $p->graph >>
+
+This method will return an RDF::Trine::Model object with all
+statements of the full graph.
+
+This method will automatically call C<consume> first, if it has not
+already been called.
+
+=cut
+
+sub graph
+{
+	my $this = shift;
+	$this->consume;
+	return $this->{RESULTS};
+}
+
+sub graphs
+{
+	my $this = shift;
+	$this->consume;
+	return { $this->{'baseuri'} => $this->{RESULTS} };
+}
+
 =item $p->set_callbacks(\%callbacks)
 
 Set callback functions for the parser to call on certain events. These are only necessary if
@@ -302,7 +343,7 @@ sub set_callbacks
 	}
 	elsif (defined $_[0])
 	{
-		die("What kind of callback hashref was that??\n");
+		croak("What kind of callback hashref was that??\n");
 	}
 	else
 	{
@@ -393,6 +434,8 @@ sub _print1
 This method processes the input DOM and sends the resulting triples to 
 the callback functions (if any).
 
+It called again, does nothing.
+
 Returns the parser object itself.
 
 =cut
@@ -400,6 +443,8 @@ Returns the parser object itself.
 sub consume
 {
 	my $this = shift;
+	
+	return $this if $this->{'comsumed'};
 	
 	my @xrds = $this->{'DOM'}->getElementsByTagNameNS(NS_XRD, 'XRD')->get_nodelist;
 	
@@ -412,6 +457,8 @@ sub consume
 		$first = 0
 			if $first;
 	}
+	
+	$this->{'comsumed'}++;
 	
 	return $this;
 }
@@ -460,11 +507,19 @@ sub _consume_XRD
 	}
 	unless (@subjects)
 	{
+		if ($first && defined $this->{'options'}->{'default_subject'})
+		{
+			$subject = $this->{'options'}->{'default_subject'};
+			push @subjects, $subject;
+		}
+	}
+	unless (@subjects)
+	{
 		$subject = $this->bnode($xrd);
 		push @subjects, $subject;
 	}
 	
-	$this->rdf_triple($xrd, $description_uri, URI_FOAF.'primaryTopic', $subject);
+	$this->rdf_triple($xrd, $description_uri, URI_XRD.'subject', $subject);
 	
 	foreach my $alias ( $xrd->getChildrenByTagNameNS(NS_XRD, 'Alias')->get_nodelist )
 	{
@@ -649,29 +704,6 @@ sub _consume_Link
 			}
 		}
 	}
-}
-
-
-=item C<< $p->graph >>
-
-This method will return an RDF::Trine::Model object with all
-statements of the full graph.
-
-It makes sense to call C<consume> before calling C<graph>. Otherwise
-you'll just get an empty graph.
-
-=cut
-
-sub graph
-{
-	my $this = shift;
-	return $this->{RESULTS};
-}
-
-sub graphs
-{
-	my $this = shift;
-	return { $this->{'baseuri'} => $this->{RESULTS} };
 }
 
 sub rdf_triple
@@ -991,8 +1023,11 @@ sub valid_lang
 
 =item C<< $uri = XRD::Parser::host_uri($uri) >>
 
-Returns a URI representing the host. These crop up often in host-meta
-files.
+Returns a URI representing the host. These crop up often in graphs gleaned
+from host-meta files.
+
+$uri can be an absolute URI like 'http://example.net/foo#bar' or a host
+name like 'example.com'.
 
 =cut
 
@@ -1002,11 +1037,29 @@ sub host_uri
 
 	if ($uri =~ /:/)
 	{
-		$uri = url $uri;
-		return URI_HOST . $uri->host;
+		my $tmpuri = URI->new($uri);
+		
+		if ($tmpuri->can('host'))
+		{
+			return URI_HOST . $tmpuri->host;
+		}
+		elsif($tmpuri->can('authority') && $tmpuri->authority =~ /\@/)
+		{
+			(undef, my $host) = split /\@/, $tmpuri->authority;
+			return URI_HOST . $host;
+		}
+		elsif($tmpuri->can('opaque') && $tmpuri->opaque =~ /\@/)
+		{
+			(undef, my $host) = split /\@/, $tmpuri->opaque;
+			return URI_HOST . $host;
+		}
 	}
-
-	return URI_HOST . $uri;
+	else
+	{
+		return URI_HOST . $uri;
+	}
+	
+	return undef;
 }
 
 =item C<< $uri = XRD::Parser::template_uri($relationship_uri) >>

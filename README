@@ -6,8 +6,6 @@ SYNOPSIS
       use XRD::Parser;
   
       my $parser = XRD::Parser->new(undef, "http://example.com/foo.xrd");
-      $parser->consume;
-  
       my $results = RDF::Query->new(
         "SELECT * WHERE {?who <http://spec.example.net/auth/1.0> ?auth.}")
         ->execute($parser->graph);
@@ -17,13 +15,14 @@ SYNOPSIS
         print $result->{'auth'}->uri . "\n";
       }
 
+    or maybe:
+
       my $data = XRD::Parser->hostmeta('gmail.com')
-                              ->consume
-                                ->graph
-                                  ->as_hashref;
+                              ->graph
+                                ->as_hashref;
 
 VERSION
-    0.05
+    0.100
 
 DESCRIPTION
     While XRD has a rather different history, it turns out it can mostly be
@@ -48,14 +47,15 @@ DESCRIPTION
         not catch the exception.
 
         $uri the supposed URI of the content; it is used to resolve any
-        relative URIs found in the XRD document. Also, if $content is empty,
-        then XRD::Parser will attempt to retrieve $uri using
-        LWPx::ParanoidAgent.
+        relative URIs found in the XRD document. Also, if $content is undef,
+        then XRD::Parser will attempt to retrieve $uri using LWP::UserAgent.
 
         Options [default in brackets]:
 
+          * default_subject - If no <Subject> element. [undef]
           * link_prop       - How to handle <Property> in <Link>? [0]
                               0=skip, 1=reify, 2=subproperty, 3=both.
+          * loose_mime      - Accept text/plain & app/octet-stream. [0]
           * tdb_service     - thing-described-by.org when possible. [0]
 
         $storage is an RDF::Trine::Storage object. If undef, then a new
@@ -87,6 +87,13 @@ DESCRIPTION
     "$p->dom"
         Returns the parsed XML::LibXML::Document.
 
+    "$p->graph"
+        This method will return an RDF::Trine::Model object with all
+        statements of the full graph.
+
+        This method will automatically call "consume" first, if it has not
+        already been called.
+
     $p->set_callbacks(\%callbacks)
         Set callback functions for the parser to call on certain events.
         These are only necessary if you want to do something especially
@@ -112,19 +119,17 @@ DESCRIPTION
         This method processes the input DOM and sends the resulting triples
         to the callback functions (if any).
 
+        It called again, does nothing.
+
         Returns the parser object itself.
-
-    "$p->graph"
-        This method will return an RDF::Trine::Model object with all
-        statements of the full graph.
-
-        It makes sense to call "consume" before calling "graph". Otherwise
-        you'll just get an empty graph.
 
   Utility Functions
     "$uri = XRD::Parser::host_uri($uri)"
-        Returns a URI representing the host. These crop up often in
-        host-meta files.
+        Returns a URI representing the host. These crop up often in graphs
+        gleaned from host-meta files.
+
+        $uri can be an absolute URI like 'http://example.net/foo#bar' or a
+        host name like 'example.com'.
 
     "$uri = XRD::Parser::template_uri($relationship_uri)"
         Returns a URI representing not a normal relationship, but the

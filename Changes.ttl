@@ -99,6 +99,18 @@ my:v_0-06
 			[ rdfs:label "Add reasonable timeouts for hostmeta constructor."@en ]
 		] .
 
+my:v_0-100
+
+	a               :Version ;
+	dc:issued       "2010-06-30"^^xsd:date ;
+	:revision       "0.100"^^xsd:string ;
+	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.100.tar.gz> ;
+	dcs:changeset [
+		dcs:versus my:v_0-06 ;
+		dcs:item [ rdfs:label "Improvements to method for extracting host names from URIs."@en ] ;
+		dcs:item [ rdfs:label "Tracked changes to host-meta spec."@en ; a dcs:Update ] ;
+		] .
+
 #############################################################
 
 my:project
@@ -118,7 +130,7 @@ my:project
 	:created        "2009-12-04"^^xsd:date ;
 	:license        <http://dev.perl.org/licenses/> ;
 	:release        my:v_0-01 , my:v_0-02 , my:v_0-03 , my:v_0-04 ,
-	                my:v_0-05 , my:v_0-06 .
+	                my:v_0-05 , my:v_0-06 , my:v_0-100 .
 
 #############################################################
 
