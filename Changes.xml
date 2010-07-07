@@ -179,6 +179,22 @@
     <file-release rdf:resource="http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.100.tar.gz"/>
     <revision rdf:datatype="http://www.w3.org/2001/XMLSchema#string">0.100</revision>
   </Version>
+  <Version rdf:about="http://purl.org/NET/cpan-uri/dist/XRD-Parser/v_0-101">
+    <dcs:changeset>
+      <rdf:Description>
+        <dcs:item>
+          <rdf:Description>
+            <rdfs:comment xml:lang="en">The hostmeta_location function is useful in its own right to modules like HTTP::LRDD.</rdfs:comment>
+            <rdfs:label xml:lang="en">Split hostmeta_location function out from hostmeta construtor.</rdfs:label>
+          </rdf:Description>
+        </dcs:item>
+        <dcs:versus rdf:resource="http://purl.org/NET/cpan-uri/dist/XRD-Parser/v_0-100"/>
+      </rdf:Description>
+    </dcs:changeset>
+    <dc:issued rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2010-07-07</dc:issued>
+    <file-release rdf:resource="http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.101.tar.gz"/>
+    <revision rdf:datatype="http://www.w3.org/2001/XMLSchema#string">0.101</revision>
+  </Version>
   <Project rdf:about="http://purl.org/NET/cpan-uri/dist/XRD-Parser/project">
     <bug-database rdf:resource="http://rt.cpan.org/Dist/Display.html?Queue=XRD-Parser"/>
     <created rdf:datatype="http://www.w3.org/2001/XMLSchema#date">2009-12-04</created>
@@ -197,6 +213,7 @@
     <release rdf:resource="http://purl.org/NET/cpan-uri/dist/XRD-Parser/v_0-05"/>
     <release rdf:resource="http://purl.org/NET/cpan-uri/dist/XRD-Parser/v_0-06"/>
     <release rdf:resource="http://purl.org/NET/cpan-uri/dist/XRD-Parser/v_0-100"/>
+    <release rdf:resource="http://purl.org/NET/cpan-uri/dist/XRD-Parser/v_0-101"/>
     <repository>
       <SVNRepository>
         <browse rdf:resource="http://goddamn.co.uk/viewvc/perlmods/XRD-Parser/"/>

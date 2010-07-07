@@ -32,11 +32,11 @@ use strict;
 
 =head1 VERSION
 
-0.100
+0.101
 
 =cut
 
-our $VERSION = '0.100';
+our $VERSION = '0.101';
 
 use Carp;
 use Digest::SHA1 qw(sha1_hex);
@@ -177,36 +177,19 @@ appropriate HTTP Accept header, and the parser object returned.
 sub hostmeta
 {
 	my $class = shift;
-	my $host  = shift;
-
-	if ($host =~ /:/)
-	{
-		my $u = url $host;
-		if ($u->can('host'))
-		{
-			$host = $u->host;
-		}
-		elsif ($u->can('authority') && $u->authority =~ /\@/)
-		{
-			(undef, $host) = split /\@/, $u->authority;
-		}
-		elsif ($u->can('opaque') && $u->opaque =~ /\@/)
-		{
-			(undef, $host) = split /\@/, $u->opaque;
-		}
-	}
-
-	return undef unless $host;
-	
+	my $host = shift;
 	my $rv;
 
-	eval { $rv = $class->new(undef, "https://$host/.well-known/host-meta", {timeout=>10, loose_mime=>1,default_subject=>host_uri($host)}); };
+	my ($https, $http) = hostmeta_location($host);
+	return undef unless $https;
+	
+	eval { $rv = $class->new(undef, $https, {timeout=>10, loose_mime=>1,default_subject=>host_uri($host)}); };
 	return $rv if $rv;
 	
-	eval { $rv = $class->new(undef, "http://$host/.well-known/host-meta", {timeout=>15, loose_mime=>1,default_subject=>host_uri($host)}); } ;
+	eval { $rv = $class->new(undef, $http, {timeout=>15, loose_mime=>1,default_subject=>host_uri($host)}); } ;
 	return $rv if $rv;
 	
-	return undef;
+	return;
 }
 
 =back
@@ -1021,7 +1004,7 @@ sub valid_lang
 
 =over 4
 
-=item C<< $uri = XRD::Parser::host_uri($uri) >>
+=item C<< $host_uri = XRD::Parser::host_uri($uri) >>
 
 Returns a URI representing the host. These crop up often in graphs gleaned
 from host-meta files.
@@ -1073,6 +1056,48 @@ sub template_uri
 {
 	my $uri = shift;
 	return SCHEME_TMPL . $uri;
+}
+
+
+=item C<< $hostmeta_uri = XRD::Parser::hostmeta_location($host) >>
+
+The parameter may be a URI (from which the hostname will be extracted) or
+just a bare host name (e.g. "example.com"). The location for a host-meta file
+relevant to the host of that URI will be calculated.
+
+If called in list context, returns an 'https' URI and an 'http' URI as a list.
+
+=cut
+
+sub hostmeta_location
+{
+	my $host  = shift;
+
+	if ($host =~ /:/)
+	{
+		my $u = url $host;
+		if ($u->can('host'))
+		{
+			$host = $u->host;
+		}
+		elsif ($u->can('authority') && $u->authority =~ /\@/)
+		{
+			(undef, $host) = split /\@/, $u->authority;
+		}
+		elsif ($u->can('opaque') && $u->opaque =~ /\@/)
+		{
+			(undef, $host) = split /\@/, $u->opaque;
+		}
+	}
+	
+	if (wantarray)
+	{
+		return ("https://$host/.well-known/host-meta", "http://$host/.well-known/host-meta");
+	}
+	else
+	{
+		return "http://$host/.well-known/host-meta";
+	}
 }
 
 1;

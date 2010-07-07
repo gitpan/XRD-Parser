@@ -22,7 +22,7 @@ SYNOPSIS
                                 ->as_hashref;
 
 VERSION
-    0.100
+    0.101
 
 DESCRIPTION
     While XRD has a rather different history, it turns out it can mostly be
@@ -124,7 +124,7 @@ DESCRIPTION
         Returns the parser object itself.
 
   Utility Functions
-    "$uri = XRD::Parser::host_uri($uri)"
+    "$host_uri = XRD::Parser::host_uri($uri)"
         Returns a URI representing the host. These crop up often in graphs
         gleaned from host-meta files.
 
@@ -134,6 +134,15 @@ DESCRIPTION
     "$uri = XRD::Parser::template_uri($relationship_uri)"
         Returns a URI representing not a normal relationship, but the
         relationship between a host and a template URI literal.
+
+    "$hostmeta_uri = XRD::Parser::hostmeta_location($host)"
+        The parameter may be a URI (from which the hostname will be
+        extracted) or just a bare host name (e.g. "example.com"). The
+        location for a host-meta file relevant to the host of that URI will
+        be calculated.
+
+        If called in list context, returns an 'https' URI and an 'http' URI
+        as a list.
 
 CALLBACKS
     Several callback functions are provided. These may be set using the

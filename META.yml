@@ -32,4 +32,4 @@ resources:
   homepage: http://search.cpan.org/dist/XRD-Parser/
   license: http://dev.perl.org/licenses/
   repository: http://goddamn.co.uk/viewvc/perlmods/XRD-Parser/
-version: 0.100
+version: 0.101

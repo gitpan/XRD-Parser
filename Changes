@@ -10,22 +10,25 @@ Home page:    <http://search.cpan.org/dist/XRD-Parser/>
 Bug tracker:  <http://rt.cpan.org/Dist/Display.html?Queue=XRD-Parser>
 Maintainer:   Toby Inkster <mailto:tobyink@cpan.org>
 
+0.101 [2010-07-07]
+ - Split hostmeta_location function out from hostmeta construtor.
+
 0.100 [2010-06-30]
- - Improvements to method for extracting host names from URIs.
  - (Update) Tracked changes to host-meta spec.
+ - Improvements to method for extracting host names from URIs.
 
 0.06 [2010-04-26]
  - Add reasonable timeouts for hostmeta constructor.
 
 0.05 [2010-02-02]
- - Provide an alternative method of handling <Property> within <Link>: RDFS
-   subproperties.
+ - (Update) Switch to my new build system.
  - (Update) Copyright 2010.
  - Allow both methods of handling <Property> within <Link> to be toggled
    independently.
+ - Provide an alternative method of handling <Property> within <Link>: RDFS
+   subproperties.
  - (Addition) host_uri and template_uri utility functions.
  - (Update) Synchronise callback functionality with RDF::RDFa::Parser 0.30.
- - (Update) Switch to my new build system.
 
 0.04 [2009-12-16]
  - Parse <Property> children of <Link template> elements.
@@ -35,20 +38,20 @@ Maintainer:   Toby Inkster <mailto:tobyink@cpan.org>
    children.
 
 0.03
+ - (Addition) Provide an XRD::Parser->hostmeta($uri) shortcut constructor.
  - Send proper HTTP Accept header when requesting XRD files.
  - Prefer namespace-aware DOM functions.
- - (Addition) Provide an XRD::Parser->hostmeta($uri) shortcut constructor.
 
 0.02
- - (Addition) Support <Link template/> attribute via a special datatype and
-   special predicate URI scheme.
  - (Addition) Support for host-meta's <hm:Host/> element as a way to set
    subjects.
- - Map XRD <Expires/> element to the RDF URI
-   <http://ontologi.es/xrd#expires>.
- - (Addition) Support for IANA keywords in <Link rel/> attribute.
  - Implement <Alias/> element as an owl:sameAs-like predicate rather than
    simply duplicating data.
+ - (Addition) Support for IANA keywords in <Link rel/> attribute.
+ - Map XRD <Expires/> element to the RDF URI
+   <http://ontologi.es/xrd#expires>.
+ - (Addition) Support <Link template/> attribute via a special datatype and
+   special predicate URI scheme.
 
 0.01 # First release
 
