@@ -1,5 +1,3 @@
-#############################################################
-
 @prefix :        <http://usefulinc.com/ns/doap#> .
 @prefix dcs:     <http://ontologi.es/doap-changeset#> .
 @prefix dc:      <http://purl.org/dc/terms/> .
@@ -9,26 +7,15 @@
 @prefix toby:    <http://tobyinkster.co.uk/#> .
 @prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
 
-#############################################################
-
-<>
-
-	dc:title         "Changes" ;
-	dc:description   "Revision history for Perl extension XRD::Parser."@en ;
-	dc:subject       my:project ;
-	dc:creator       toby:i .
-
-#############################################################
-
+my:project :release my:v_0-01 .
 my:v_0-01
-
 	a               :Version ;
 	:revision       "0.01"^^xsd:string ;
 	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.01.tar.gz> ;
 	rdfs:label      "First release"@en .
 
+my:project :release my:v_0-02 .
 my:v_0-02
-
 	a               :Version ;
 	:revision       "0.02"^^xsd:string ;
 	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.02.tar.gz> ;
@@ -42,8 +29,8 @@ my:v_0-02
 			[ rdfs:label "Map XRD <Expires/> element to the RDF URI <http://ontologi.es/xrd#expires>."@en ]
 		] .
 
+my:project :release my:v_0-03 .
 my:v_0-03
-
 	a               :Version ;
 	:revision       "0.03"^^xsd:string ;
 	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.03.tar.gz> ;
@@ -55,8 +42,8 @@ my:v_0-03
 			[ rdfs:label "Prefer namespace-aware DOM functions."@en ]
 		] .
 		
+my:project :release my:v_0-04 .
 my:v_0-04
-
 	a               :Version ;
 	dc:issued       "2009-12-16"^^xsd:date ;
 	:revision       "0.04"^^xsd:string ;
@@ -70,8 +57,8 @@ my:v_0-04
 		rdfs:comment "And other minor bugfixes."@en 
 		] .
 		
+my:project :release my:v_0-05 .
 my:v_0-05
-
 	a               :Version ;
 	dc:issued       "2010-02-02"^^xsd:date ;
 	:revision       "0.05"^^xsd:string ;
@@ -87,8 +74,8 @@ my:v_0-05
 			[ rdfs:label "Copyright 2010."@en ; a dcs:Update ]
 		] .
 
+my:project :release my:v_0-06 .
 my:v_0-06
-
 	a               :Version ;
 	dc:issued       "2010-04-26"^^xsd:date ;
 	:revision       "0.06"^^xsd:string ;
@@ -99,8 +86,8 @@ my:v_0-06
 			[ rdfs:label "Add reasonable timeouts for hostmeta constructor."@en ]
 		] .
 
+my:project :release my:v_0-100 .
 my:v_0-100
-
 	a               :Version ;
 	dc:issued       "2010-06-30"^^xsd:date ;
 	:revision       "0.100"^^xsd:string ;
@@ -112,8 +99,8 @@ my:v_0-100
 			[ rdfs:label "Tracked changes to host-meta spec."@en ; a dcs:Update ] 
 		] .
 
+my:project :release my:v_0-101 .
 my:v_0-101
-
 	a               :Version ;
 	dc:issued       "2010-07-07"^^xsd:date ;
 	:revision       "0.101"^^xsd:string ;
@@ -124,36 +111,30 @@ my:v_0-101
 			[ rdfs:label "Split hostmeta_location function out from hostmeta construtor."@en ; rdfs:comment "The hostmeta_location function is useful in its own right to modules like HTTP::LRDD."@en ]
 		] .
 
-#############################################################
+my:project :release my:v_0-102 .
+my:v_0-102
+	a               :Version ;
+	dc:issued       "2010-08-11"^^xsd:date ;
+	:revision       "0.102"^^xsd:string ;
+	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.102.tar.gz> ;
+	dcs:changeset [
+		dcs:versus my:v_0-101 ;
+		dcs:item
+			[ rdfs:label "new() constructor no longer accepts undef content - use new_from_url() instead."@en ; a dcs:Removal ] ,
+			[ rdfs:label "new_from_url() constructor."@en ; a dcs:Addition ] 
+		] .
 
-my:project
+my:project :release my:v_0-103 .
+my:v_0-103
+	a               :Version ;
+	dc:issued       "2011-11-27"^^xsd:date ;
+	:revision       "0.103"^^xsd:string ;
+	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.103.tar.gz> ;
+	dcs:changeset [
+		dcs:versus my:v_0-102 ;
+		dcs:item   [ rdfs:label "use 5.010"@en ; a dcs:Update ] ;
+		dcs:item   [ rdfs:label "Minor tidy"@en ] ;
+		dcs:item   [ rdfs:label "Module::Package::RDF"@en ; a dcs:Packaging ] ;
+		dcs:item   [ rdfs:label "Generate more randomised bnode identifiers." ; a dcs:Bugfix ]
+		] .
 
-	a               :Project ;
-	:name           "XRD-Parser" ;
-	:shortdesc      "parse XRD and host-meta files into RDF::Trine models"@en ;
-	:programming-language  "Perl" ;
-	:homepage       <http://search.cpan.org/dist/XRD-Parser/> ;
-	:download-page  <http://search.cpan.org/dist/XRD-Parser/> ;
-	:bug-database   <http://rt.cpan.org/Dist/Display.html?Queue=XRD-Parser> ;
-	:repository     [ a :SVNRepository ; :browse <http://goddamn.co.uk/viewvc/perlmods/XRD-Parser/> ] ;
-	:maintainer     toby:i ;
-	:developer      toby:i ;
-	:documenter     toby:i ;
-	:tester         toby:i ;
-	:created        "2009-12-04"^^xsd:date ;
-	:license        <http://dev.perl.org/licenses/> ;
-	:release        my:v_0-01 , my:v_0-02 , my:v_0-03 , my:v_0-04 ,
-	                my:v_0-05 , my:v_0-06 , my:v_0-100 , my:v_0-101 .
-
-#############################################################
-
-toby:i
-
-	a               foaf:Person ;
-	foaf:name       "Toby Inkster" ;
-	foaf:homepage   <http://tobyinkster.co.uk/> ;
-	foaf:page       <http://search.cpan.org/~tobyink/> ;
-	foaf:mbox       <mailto:tobyink@cpan.org> ;
-	<http://www.w3.org/2002/07/owl#sameAs> <http://purl.org/NET/cpan-uri/person/tobyink> .
-
-#############################################################

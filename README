@@ -21,9 +21,6 @@ SYNOPSIS
                               ->graph
                                 ->as_hashref;
 
-VERSION
-    0.101
-
 DESCRIPTION
     While XRD has a rather different history, it turns out it can mostly be
     thought of as a serialisation format for a limited subset of RDF.
@@ -38,7 +35,7 @@ DESCRIPTION
     interface.
 
   Constructors
-    "$p = XRD::Parser->new($content, $uri, \%options, $store)"
+    "$p = XRD::Parser->new($content, $uri, [\%options], [$store])"
         This method creates a new XRD::Parser object and returns it.
 
         The $content variable may contain an XML string, or a
@@ -46,20 +43,28 @@ DESCRIPTION
         XML::LibXML::Parser, which may throw an exception. XRD::Parser does
         not catch the exception.
 
-        $uri the supposed URI of the content; it is used to resolve any
-        relative URIs found in the XRD document. Also, if $content is undef,
-        then XRD::Parser will attempt to retrieve $uri using LWP::UserAgent.
+        $uri the base URI of the content; it is used to resolve any relative
+        URIs found in the XRD document.
 
         Options [default in brackets]:
 
-          * default_subject - If no <Subject> element. [undef]
-          * link_prop       - How to handle <Property> in <Link>? [0]
-                              0=skip, 1=reify, 2=subproperty, 3=both.
-          * loose_mime      - Accept text/plain & app/octet-stream. [0]
-          * tdb_service     - thing-described-by.org when possible. [0]
+        *       default_subject - If no <Subject> element. [undef]
+
+        *       link_prop - How to handle <Property> in <Link>? 0=skip,
+                1=reify, 2=subproperty, 3=both. [0]
+
+        *       loose_mime - Accept text/plain, text/html and
+                application/octet-stream media types. [0]
+
+        *       tdb_service - Use thing-described-by.org when possible. [0]
 
         $storage is an RDF::Trine::Storage object. If undef, then a new
         temporary store is created.
+
+    "$p = XRD::Parser->new_from_url($url, [\%options], [$storage])"
+        $url is a URL to fetch and parse.
+
+        This function can also be called as "new_from_uri". Same thing.
 
     "$p = XRD::Parser->hostmeta($uri)"
         This method creates a new XRD::Parser object and returns it.
@@ -207,6 +212,14 @@ CALLBACKS
     add it to the graph); return 0 otherwise. The callback may modify the
     RDF::Trine::Statement object.
 
+WHY RDF?
+    It abstracts away the structure of the XRD file, exposing just the
+    meaning of its contents. Two XRD files with the same meaning should end
+    up producing more or less the same RDF data, even if they differ
+    significantly at the syntactic level.
+
+    If you care about the syntax of an XRD file, then use XML::LibXML.
+
 SEE ALSO
     RDF::Trine, RDF::Query, RDF::RDFa::Parser.
 
@@ -215,10 +228,14 @@ SEE ALSO
 AUTHOR
     Toby Inkster, <tobyink@cpan.org>
 
-COPYRIGHT AND LICENSE
-    Copyright (C) 2009-2010 by Toby Inkster
+COPYRIGHT AND LICENCE
+    Copyright (C) 2009-2011 by Toby Inkster
 
     This library is free software; you can redistribute it and/or modify it
-    under the same terms as Perl itself, either Perl version 5.8 or, at your
-    option, any later version of Perl 5 you may have available.
+    under the same terms as Perl itself.
+
+DISCLAIMER OF WARRANTIES
+    THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED
+    WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
+    MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 

@@ -1,60 +1,25 @@
-=head1 NAME
-
-XRD::Parser - parse XRD and host-meta files into RDF::Trine models
-
-=head1 SYNOPSIS
-
-  use RDF::Query;
-  use XRD::Parser;
-  
-  my $parser = XRD::Parser->new(undef, "http://example.com/foo.xrd");
-  my $results = RDF::Query->new(
-    "SELECT * WHERE {?who <http://spec.example.net/auth/1.0> ?auth.}")
-    ->execute($parser->graph);
-	
-  while (my $result = $results->next)
-  {
-    print $result->{'auth'}->uri . "\n";
-  }
-
-or maybe:
-
-  my $data = XRD::Parser->hostmeta('gmail.com')
-                          ->graph
-                            ->as_hashref;
-
-=cut
-
 package XRD::Parser;
 
-use 5.008;
+use 5.010;
 use strict;
 
-=head1 VERSION
-
-0.101
-
-=cut
-
-our $VERSION = '0.101';
-
-use Carp;
-use Digest::SHA1 qw(sha1_hex);
-use Encode qw(encode_utf8);
-use HTTP::Link::Parser;
-use LWP::UserAgent;
-use RDF::Trine;
-use Scalar::Util qw(blessed);
-use URI::Escape;
-use URI::URL;
-use XML::LibXML qw(:all);
+use Carp 0;
+use Digest::SHA1 0 qw(sha1_hex);
+use Encode 0 qw(encode_utf8);
+use HTTP::Link::Parser 0.102;
+use LWP::UserAgent 0;
+use RDF::Trine 0.135;
+use Scalar::Util 0 qw(blessed);
+use UNIVERSAL::AUTHORITY 0;
+use URI::Escape 0;
+use URI::URL 0;
+use XML::LibXML 1.70 qw(:all);
 
 use constant NS_HOSTMETA => 'http://host-meta.net/ns/1.0';
 use constant NS_HOSTMETX => 'http://host-meta.net/xrd/1.0';
 use constant NS_XML      => XML::LibXML::XML_XML_NS;
 use constant NS_XRD      => 'http://docs.oasis-open.org/ns/xri/xrd-1.0';
 use constant URI_DCTERMS => 'http://purl.org/dc/terms/';
-use constant URI_FOAF    => 'http://xmlns.com/foaf/0.1/';
 use constant URI_HOST    => 'http://ontologi.es/xrd#host:';
 use constant URI_RDF     => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 use constant URI_RDFS    => 'http://www.w3.org/2000/01/rdf-schema#';
@@ -64,81 +29,31 @@ use constant URI_XRD     => 'http://ontologi.es/xrd#';
 use constant URI_XSD     => 'http://www.w3.org/2001/XMLSchema#';
 use constant SCHEME_TMPL => 'x-xrd+template+for:';
 
-=head1 DESCRIPTION
-
-While XRD has a rather different history, it turns out it can mostly
-be thought of as a serialisation format for a limited subset of
-RDF.
-
-This package ignores the order of <Link> elements, as RDF is a graph
-format with no concept of statements coming in an "order". The XRD spec
-says that grokking the order of <Link> elements is only a SHOULD. That
-said, if you're concerned about the order of <Link> elements, the
-callback routines allowed by this package may be of use.
-
-This package aims to be roughly compatible with RDF::RDFa::Parser's
-interface.
-
-=head2 Constructors
-
-=over 4
-
-=item C<< $p = XRD::Parser->new($content, $uri, \%options, $store) >>
-
-This method creates a new XRD::Parser object and returns it.
-
-The $content variable may contain an XML string, or a XML::LibXML::Document.
-If a string, the document is parsed using XML::LibXML::Parser, which may throw an
-exception. XRD::Parser does not catch the exception.
-
-$uri the supposed URI of the content; it is used to resolve any relative URIs found
-in the XRD document. Also, if $content is undef, then XRD::Parser will attempt
-to retrieve $uri using LWP::UserAgent.
-
-Options [default in brackets]:
-
-  * default_subject - If no <Subject> element. [undef]
-  * link_prop       - How to handle <Property> in <Link>? [0]
-                      0=skip, 1=reify, 2=subproperty, 3=both.
-  * loose_mime      - Accept text/plain & app/octet-stream. [0]
-  * tdb_service     - thing-described-by.org when possible. [0]
-
-$storage is an RDF::Trine::Storage object. If undef, then a new
-temporary store is created.
-
-=cut
+BEGIN {
+	$XRD::Parser::AUTHORITY  = 'cpan:TOBYINK';
+	$XRD::Parser::VERSION    = '0.102';
+}
 
 sub new
 {
-	my $class   = shift;
-	my $content = shift || undef;
-	my $baseuri = shift || undef;
-	my $options = shift || undef;
-	my $store   = shift || undef;
+	my ($class, $content, $baseuri, $options, $store)= @_;
+	
+	# Rationalise $options
+	# ====================
+	# If $options is undefined, then use the default configuration
+	if (!ref $options)
+		{ $options = {}; }
+
+	# Rationalise $baseuri
+	# ====================
+	croak "Need a valid base URI.\n"
+		unless $baseuri =~ /^[a-z][a-z0-9\+\-\.]*:/i;
+
+	# Rationalise $content and set $domtree
+	# =====================================
+	croak "Need to provide XML content\n"
+		unless defined $content;	
 	my $domtree;
-	
-	unless (defined $content)
-	{
-		my $ua = LWP::UserAgent->new;
-		$ua->agent(sprintf('%s/%s ', __PACKAGE__, $VERSION));
-		$ua->default_header("Accept" => "application/xrd+xml, application/xml;q=0.1, text/xml;q=0.1");
-		my $response;
-		my $timeout = $options->{timeout} || 60;
-		eval {
-			local $SIG{ALRM} = sub { die "Request timed out\n"; };
-			alarm $timeout;
-			$response = $ua->get($baseuri);
-			alarm 0;
-		};
-		croak $@ if $@;
-		croak "HTTP response not successful\n"
-			unless defined $response && $response->is_success;
-		croak "Non-XRD HTTP response\n"
-			unless $response->content_type =~ m`^(text/xml)|(application/(xrd\+xml|xml))$`
-			|| ($options->{'loose_mime'} && $response->content_type =~ m`^(text/plain)|(application/octet-stream)$`);
-		$content = $response->decoded_content;
-	}
-	
 	if (blessed($content) && $content->isa('XML::LibXML::Document'))
 	{
 		($domtree, $content) = ($content, $content->toString);
@@ -149,6 +64,8 @@ sub new
 		$domtree = $xml_parser->parse_string($content);
 	}
 	
+	# Rationalise $store
+	# ==================
 	$store = RDF::Trine::Store::DBI->temporary_store
 		unless defined $store;
 	
@@ -163,16 +80,44 @@ sub new
 	return $self;
 }
 
-=item C<< $p = XRD::Parser->hostmeta($uri) >>
+sub new_from_url
+{
+	my ($class, $url, $options, $store)= @_;
+	
+	if (!ref $options)
+		{ $options = {}; }
 
-This method creates a new XRD::Parser object and returns it.
+	my $ua = LWP::UserAgent->new;
+	$ua->agent(sprintf('%s/%s (%s) ', __PACKAGE__, __PACKAGE__->VERSION, __PACKAGE__->AUTHORITY));
+	$ua->default_header("Accept" => "application/xrd+xml, application/xml;q=0.1, text/xml;q=0.1");
+	my $response;
+	my $timeout = $options->{timeout} // 60;
+	eval {
+		local $SIG{ALRM} = sub { die "Request timed out\n"; };
+		alarm $timeout;
+		$response = $ua->get($url);
+		if ($response->code == 406)
+		{
+			$response = $ua->get($url, Accept=>'application/xrd+xml, application/x-httpd-php');
+		}
+		alarm 0;
+	};
+	croak $@ if $@;
+	croak "HTTP response not successful\n"
+		unless defined $response && $response->is_success;
+	croak "Non-XRD HTTP response\n"
+		unless $response->content_type =~ m`^(text/xml)|(application/(xrd\+xml|xml))$`
+		|| ($options->{'loose_mime'} && $response->content_type =~ m`^(text/plain)|(text/html)|(application/octet-stream)$`);
+	
+	return $class->new(
+		$response->decoded_content,
+		$response->base.'',
+		$options,
+		$store,
+		);
+}
 
-The parameter may be a URI (from which the hostname will be extracted) or
-just a bare host name (e.g. "example.com"). The resource
-"/.well-known/host-meta" will then be fetched from that host using an
-appropriate HTTP Accept header, and the parser object returned.
-
-=cut
+*new_from_uri = \&new_from_url;
 
 sub hostmeta
 {
@@ -181,43 +126,22 @@ sub hostmeta
 	my $rv;
 
 	my ($https, $http) = hostmeta_location($host);
-	return undef unless $https;
+	return unless $https;
 	
-	eval { $rv = $class->new(undef, $https, {timeout=>10, loose_mime=>1,default_subject=>host_uri($host)}); };
+	eval { $rv = $class->new_from_url($https, {timeout=>10, loose_mime=>1,default_subject=>host_uri($host)}); };
 	return $rv if $rv;
 	
-	eval { $rv = $class->new(undef, $http, {timeout=>15, loose_mime=>1,default_subject=>host_uri($host)}); } ;
+	eval { $rv = $class->new_from_url($http, {timeout=>15, loose_mime=>1,default_subject=>host_uri($host)}); } ;
 	return $rv if $rv;
 	
 	return;
 }
 
-=back
-
-=head2 Public Methods
-
-=over 4
-
-=item C<< $p->uri($uri) >>
-
-Returns the base URI of the document being parsed. This will usually be the
-same as the base URI provided to the constructor.
-
-Optionally it may be passed a parameter - an absolute or relative URI - in
-which case it returns the same URI which it was passed as a parameter, but
-as an absolute URI, resolved relative to the document's base URI.
-
-This seems like two unrelated functions, but if you consider the consequence
-of passing a relative URI consisting of a zero-length string, it in fact makes
-sense.
-
-=cut
-
 sub uri
 {
 	my $this  = shift;
-	my $param = shift || '';
-	my $opts  = shift || {};
+	my $param = shift // '';
+	my $opts  = shift // {};
 	
 	if ((ref $opts) =~ /^XML::LibXML/)
 	{
@@ -238,7 +162,7 @@ sub uri
 	my $base = $this->{baseuri};
 	if ($this->{'options'}->{'xml_base'})
 	{
-		$base = $opts->{'xml_base'} || $this->{baseuri};
+		$base = $opts->{'xml_base'} // $this->{baseuri};
 	}
 	
 	my $url = url $param, $base;
@@ -253,27 +177,11 @@ sub uri
 	return $rv;
 }
 
-=item C<< $p->dom >>
-
-Returns the parsed XML::LibXML::Document.
-
-=cut
-
 sub dom
 {
 	my $this = shift;
 	return $this->{DOM};
 }
-
-=item C<< $p->graph >>
-
-This method will return an RDF::Trine::Model object with all
-statements of the full graph.
-
-This method will automatically call C<consume> first, if it has not
-already been called.
-
-=cut
 
 sub graph
 {
@@ -288,28 +196,6 @@ sub graphs
 	$this->consume;
 	return { $this->{'baseuri'} => $this->{RESULTS} };
 }
-
-=item $p->set_callbacks(\%callbacks)
-
-Set callback functions for the parser to call on certain events. These are only necessary if
-you want to do something especially unusual.
-
-  $p->set_callbacks({
-    'pretriple_resource' => sub { ... } ,
-    'pretriple_literal'  => sub { ... } ,
-    'ontriple'           => undef ,
-    });
-
-Either of the two pretriple callbacks can be set to the string 'print' instead of a coderef.
-This enables built-in callbacks for printing Turtle to STDOUT.
-
-For details of the callback functions, see the section CALLBACKS. C<set_callbacks> must
-be used I<before> C<consume>. C<set_callbacks> itself returns a reference to the parser
-object itself.
-
-I<NOTE:> the behaviour of this function was changed in version 0.05.
-
-=cut
 
 sub set_callbacks
 # Set callback functions for handling RDF triples.
@@ -412,22 +298,11 @@ sub _print1
 	return undef;
 }
 
-=item C<< $p->consume >>
-
-This method processes the input DOM and sends the resulting triples to 
-the callback functions (if any).
-
-It called again, does nothing.
-
-Returns the parser object itself.
-
-=cut
-
 sub consume
 {
 	my $this = shift;
 	
-	return $this if $this->{'comsumed'};
+	return $this if $this->{'consumed'};
 	
 	my @xrds = $this->{'DOM'}->getElementsByTagNameNS(NS_XRD, 'XRD')->get_nodelist;
 	
@@ -441,7 +316,7 @@ sub consume
 			if $first;
 	}
 	
-	$this->{'comsumed'}++;
+	$this->{'consumed'}++;
 	
 	return $this;
 }
@@ -450,8 +325,8 @@ sub _consume_XRD
 {
 	my $this  = shift;
 	my $xrd   = shift;
-	my $first = shift || 0;
-	my $only  = shift || 0;
+	my $first = shift // 0;
+	my $only  = shift // 0;
 	
 	my $description_uri;
 	if ($xrd->hasAttributeNS(NS_XML, 'id'))
@@ -608,7 +483,7 @@ sub _consume_Link
 		my $type = $l->getAttribute('type');
 		if (defined $type)
 		{
-			$this->rdf_triple($l, @value, URI_DCTERMS.'format', URI_TYPES.$type);
+			$this->rdf_triple_literal($l, @value, URI_XRD.'type', $type);
 		}
 		
 		foreach my $title ($l->getChildrenByTagName('Title')->get_nodelist)
@@ -622,7 +497,7 @@ sub _consume_Link
 			$this->rdf_triple_literal(
 				$title,
 				@value,
-				URI_DCTERMS.'title',
+				URI_XRD.'title',
 				$this->stringify($title),
 				undef,
 				$lang);
@@ -896,7 +771,13 @@ sub bnode
 		$element->getAttributeNS(NS_XML, 'id'))
 		if ($this->{options}->{tdb_service} && $element && length $element->getAttributeNS(NS_XML, 'id'));
 
-	return sprintf('_:RDFaAutoNode%03d', $this->{bnodes}++);
+	$this->{bnode_prefix} //= do {
+		my $uuid = Data::UUID->new->create_str;
+		$uuid =~ s/[^A-Za-z0-9]//g;
+		$uuid;
+		};
+	
+	return sprintf('_:x%sx%03d', $this->{bnode_prefix}, $this->{bnodes}++);
 }
 
 sub valid_lang
@@ -998,22 +879,6 @@ sub valid_lang
 	return $r;
 }
 
-=back
-
-=head2 Utility Functions
-
-=over 4
-
-=item C<< $host_uri = XRD::Parser::host_uri($uri) >>
-
-Returns a URI representing the host. These crop up often in graphs gleaned
-from host-meta files.
-
-$uri can be an absolute URI like 'http://example.net/foo#bar' or a host
-name like 'example.com'.
-
-=cut
-
 sub host_uri
 {
 	my $uri = shift;
@@ -1045,29 +910,12 @@ sub host_uri
 	return undef;
 }
 
-=item C<< $uri = XRD::Parser::template_uri($relationship_uri) >>
-
-Returns a URI representing not a normal relationship, but the
-relationship between a host and a template URI literal.
-
-=cut
-
 sub template_uri
 {
 	my $uri = shift;
 	return SCHEME_TMPL . $uri;
 }
 
-
-=item C<< $hostmeta_uri = XRD::Parser::hostmeta_location($host) >>
-
-The parameter may be a URI (from which the hostname will be extracted) or
-just a bare host name (e.g. "example.com"). The location for a host-meta file
-relevant to the host of that URI will be calculated.
-
-If called in list context, returns an 'https' URI and an 'http' URI as a list.
-
-=cut
 
 sub hostmeta_location
 {
@@ -1103,6 +951,182 @@ sub hostmeta_location
 1;
 
 __END__
+
+=head1 NAME
+
+XRD::Parser - parse XRD and host-meta files into RDF::Trine models
+
+=head1 SYNOPSIS
+
+  use RDF::Query;
+  use XRD::Parser;
+  
+  my $parser = XRD::Parser->new(undef, "http://example.com/foo.xrd");
+  my $results = RDF::Query->new(
+    "SELECT * WHERE {?who <http://spec.example.net/auth/1.0> ?auth.}")
+    ->execute($parser->graph);
+	
+  while (my $result = $results->next)
+  {
+    print $result->{'auth'}->uri . "\n";
+  }
+
+or maybe:
+
+  my $data = XRD::Parser->hostmeta('gmail.com')
+                          ->graph
+                            ->as_hashref;
+
+=head1 DESCRIPTION
+
+While XRD has a rather different history, it turns out it can mostly
+be thought of as a serialisation format for a limited subset of
+RDF.
+
+This package ignores the order of <Link> elements, as RDF is a graph
+format with no concept of statements coming in an "order". The XRD spec
+says that grokking the order of <Link> elements is only a SHOULD. That
+said, if you're concerned about the order of <Link> elements, the
+callback routines allowed by this package may be of use.
+
+This package aims to be roughly compatible with RDF::RDFa::Parser's
+interface.
+
+=head2 Constructors
+
+=over 4
+
+=item C<< $p = XRD::Parser->new($content, $uri, [\%options], [$store]) >>
+
+This method creates a new XRD::Parser object and returns it.
+
+The $content variable may contain an XML string, or a XML::LibXML::Document.
+If a string, the document is parsed using XML::LibXML::Parser, which may throw an
+exception. XRD::Parser does not catch the exception.
+
+$uri the base URI of the content; it is used to resolve any relative URIs found
+in the XRD document. 
+
+Options [default in brackets]:
+
+=over 8
+
+=item * B<default_subject> - If no <Subject> element. [undef]
+
+=item * B<link_prop> - How to handle <Property> in <Link>?
+0=skip, 1=reify, 2=subproperty, 3=both. [0] 
+
+=item * B<loose_mime> - Accept text/plain, text/html and
+application/octet-stream media types. [0]
+
+=item * B<tdb_service> - Use thing-described-by.org when possible. [0]
+
+=back
+
+$storage is an RDF::Trine::Storage object. If undef, then a new
+temporary store is created.
+
+=item C<< $p = XRD::Parser->new_from_url($url, [\%options], [$storage]) >>
+
+$url is a URL to fetch and parse.
+
+This function can also be called as C<new_from_uri>. Same thing.
+
+=item C<< $p = XRD::Parser->hostmeta($uri) >>
+
+This method creates a new XRD::Parser object and returns it.
+
+The parameter may be a URI (from which the hostname will be extracted) or
+just a bare host name (e.g. "example.com"). The resource
+"/.well-known/host-meta" will then be fetched from that host using an
+appropriate HTTP Accept header, and the parser object returned.
+
+=back
+
+=head2 Public Methods
+
+=over 4
+
+=item C<< $p->uri($uri) >>
+
+Returns the base URI of the document being parsed. This will usually be the
+same as the base URI provided to the constructor.
+
+Optionally it may be passed a parameter - an absolute or relative URI - in
+which case it returns the same URI which it was passed as a parameter, but
+as an absolute URI, resolved relative to the document's base URI.
+
+This seems like two unrelated functions, but if you consider the consequence
+of passing a relative URI consisting of a zero-length string, it in fact makes
+sense.
+
+=item C<< $p->dom >>
+
+Returns the parsed XML::LibXML::Document.
+
+=item C<< $p->graph >>
+
+This method will return an RDF::Trine::Model object with all
+statements of the full graph.
+
+This method will automatically call C<consume> first, if it has not
+already been called.
+
+=item $p->set_callbacks(\%callbacks)
+
+Set callback functions for the parser to call on certain events. These are only necessary if
+you want to do something especially unusual.
+
+  $p->set_callbacks({
+    'pretriple_resource' => sub { ... } ,
+    'pretriple_literal'  => sub { ... } ,
+    'ontriple'           => undef ,
+    });
+
+Either of the two pretriple callbacks can be set to the string 'print' instead of a coderef.
+This enables built-in callbacks for printing Turtle to STDOUT.
+
+For details of the callback functions, see the section CALLBACKS. C<set_callbacks> must
+be used I<before> C<consume>. C<set_callbacks> itself returns a reference to the parser
+object itself.
+
+I<NOTE:> the behaviour of this function was changed in version 0.05.
+
+=item C<< $p->consume >>
+
+This method processes the input DOM and sends the resulting triples to 
+the callback functions (if any).
+
+It called again, does nothing.
+
+Returns the parser object itself.
+
+=back
+
+=head2 Utility Functions
+
+=over 4
+
+=item C<< $host_uri = XRD::Parser::host_uri($uri) >>
+
+Returns a URI representing the host. These crop up often in graphs gleaned
+from host-meta files.
+
+$uri can be an absolute URI like 'http://example.net/foo#bar' or a host
+name like 'example.com'.
+
+=item C<< $uri = XRD::Parser::template_uri($relationship_uri) >>
+
+Returns a URI representing not a normal relationship, but the
+relationship between a host and a template URI literal.
+
+=item C<< $hostmeta_uri = XRD::Parser::hostmeta_location($host) >>
+
+The parameter may be a URI (from which the hostname will be extracted) or
+just a bare host name (e.g. "example.com"). The location for a host-meta file
+relevant to the host of that URI will be calculated.
+
+If called in list context, returns an 'https' URI and an 'http' URI as a list.
 
 =back
 
@@ -1183,6 +1207,15 @@ The callback should return 1 to tell the parser to skip this triple (not add it 
 the graph); return 0 otherwise. The callback may modify the RDF::Trine::Statement
 object.
 
+=head1 WHY RDF?
+
+It abstracts away the structure of the XRD file, exposing just the meaning
+of its contents. Two XRD files with the same meaning should end up producing
+more or less the same RDF data, even if they differ significantly at the
+syntactic level.
+
+If you care about the syntax of an XRD file, then use L<XML::LibXML>.
+
 =head1 SEE ALSO
 
 L<RDF::Trine>, L<RDF::Query>, L<RDF::RDFa::Parser>.
@@ -1193,13 +1226,17 @@ L<http://www.perlrdf.org/>.
 
 Toby Inkster, E<lt>tobyink@cpan.orgE<gt>
 
-=head1 COPYRIGHT AND LICENSE
+=head1 COPYRIGHT AND LICENCE
 
-Copyright (C) 2009-2010 by Toby Inkster
+Copyright (C) 2009-2011 by Toby Inkster
 
 This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8 or,
-at your option, any later version of Perl 5 you may have available.
+it under the same terms as Perl itself.
 
+=head1 DISCLAIMER OF WARRANTIES
+
+THIS PACKAGE IS PROVIDED "AS IS" AND WITHOUT ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
+MERCHANTIBILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 
 =cut
