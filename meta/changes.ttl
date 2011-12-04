@@ -138,3 +138,14 @@ my:v_0-103
 		dcs:item   [ rdfs:label "Generate more randomised bnode identifiers." ; a dcs:Bugfix ]
 		] .
 
+my:project :release my:v_0-104 .
+my:v_0-104
+	a               :Version ;
+	dc:issued       "2011-12-04"^^xsd:date ;
+	:revision       "0.104"^^xsd:string ;
+	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.104.tar.gz> ;
+	dcs:changeset [
+		dcs:versus my:v_0-103 ;
+		dcs:item   [ rdfs:label "Replace UNIVERSAL::AUTHORITY with Object::AUTHORITY."@en ] ;
+		dcs:item   [ rdfs:label "Newer version of Module::Package::RDF."@en ; a dcs:Packaging, dcs:Bugfix ] 
+		] .

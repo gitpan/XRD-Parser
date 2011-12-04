@@ -29,9 +29,9 @@ requires:
   Encode: 0
   HTTP::Link::Parser: 0.102
   LWP::UserAgent: 0
+  Object::AUTHORITY: 0
   RDF::Trine: 0.135
   Scalar::Util: 0
-  UNIVERSAL::AUTHORITY: 0
   URI::Escape: 0
   URI::URL: 0
   XML::LibXML: 1.70
@@ -41,4 +41,4 @@ resources:
   homepage: https://metacpan.org/release/XRD-Parser
   license: http://dev.perl.org/licenses/
   repository: https://bitbucket.org/tobyink/p5-xrd-parser
-version: 0.102
+version: 0.103

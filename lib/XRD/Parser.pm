@@ -8,9 +8,9 @@ use Digest::SHA1 0 qw(sha1_hex);
 use Encode 0 qw(encode_utf8);
 use HTTP::Link::Parser 0.102;
 use LWP::UserAgent 0;
+use Object::AUTHORITY 0;
 use RDF::Trine 0.135;
 use Scalar::Util 0 qw(blessed);
-use UNIVERSAL::AUTHORITY 0;
 use URI::Escape 0;
 use URI::URL 0;
 use XML::LibXML 1.70 qw(:all);
@@ -31,7 +31,7 @@ use constant SCHEME_TMPL => 'x-xrd+template+for:';
 
 BEGIN {
 	$XRD::Parser::AUTHORITY  = 'cpan:TOBYINK';
-	$XRD::Parser::VERSION    = '0.102';
+	$XRD::Parser::VERSION    = '0.103';
 }
 
 sub new
