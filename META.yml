@@ -42,4 +42,4 @@ resources:
   homepage: https://metacpan.org/release/XRD-Parser
   license: http://dev.perl.org/licenses/
   repository: https://bitbucket.org/tobyink/p5-xrd-parser
-version: 0.200
+version: 0.201

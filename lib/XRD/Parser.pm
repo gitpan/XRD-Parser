@@ -31,7 +31,7 @@ use constant SCHEME_TMPL => 'x-xrd+template+for:';
 
 BEGIN {
 	$XRD::Parser::AUTHORITY  = 'cpan:TOBYINK';
-	$XRD::Parser::VERSION    = '0.200';
+	$XRD::Parser::VERSION    = '0.201';
 }
 
 sub new
