@@ -18,7 +18,8 @@ inc/Module/Install/WriteAll.pm
 inc/Module/Package.pm
 inc/Module/Package/Dist/RDF.pm
 inc/Scalar/Util.pm
-inc/Scalar/Util/PP.pm
+inc/unicore/Name.pm
+inc/utf8.pm
 inc/YAML/Tiny.pm
 lib/XRD/Parser.pm
 LICENSE

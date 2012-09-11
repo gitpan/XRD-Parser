@@ -4,7 +4,7 @@ use 5.010;
 use strict;
 
 use Carp 0;
-use Digest::SHA1 0 qw(sha1_hex);
+use Digest::SHA 0 qw(sha1_hex);
 use Encode 0 qw(encode_utf8);
 use HTTP::Link::Parser 0.102;
 use LWP::UserAgent 0;
@@ -31,7 +31,7 @@ use constant SCHEME_TMPL => 'x-xrd+template+for:';
 
 BEGIN {
 	$XRD::Parser::AUTHORITY  = 'cpan:TOBYINK';
-	$XRD::Parser::VERSION    = '0.103';
+	$XRD::Parser::VERSION    = '0.200';
 }
 
 sub new
@@ -1228,7 +1228,7 @@ Toby Inkster, E<lt>tobyink@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENCE
 
-Copyright (C) 2009-2011 by Toby Inkster
+Copyright (C) 2009-2012 by Toby Inkster
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

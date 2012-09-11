@@ -82,8 +82,7 @@ my:v_0-06
 	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.06.tar.gz> ;
 	dcs:changeset [
 		dcs:versus my:v_0-05 ;
-		dcs:item
-			[ rdfs:label "Add reasonable timeouts for hostmeta constructor."@en ]
+		dcs:item   [ rdfs:label "Add reasonable timeouts for hostmeta constructor."@en ];
 		] .
 
 my:project :release my:v_0-100 .
@@ -94,9 +93,8 @@ my:v_0-100
 	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.100.tar.gz> ;
 	dcs:changeset [
 		dcs:versus my:v_0-06 ;
-		dcs:item
-			[ rdfs:label "Improvements to method for extracting host names from URIs."@en ] ,
-			[ rdfs:label "Tracked changes to host-meta spec."@en ; a dcs:Update ] 
+		dcs:item   [ rdfs:label "Improvements to method for extracting host names from URIs."@en ];
+		dcs:item   [ rdfs:label "Tracked changes to host-meta spec."@en ; a dcs:Update ];
 		] .
 
 my:project :release my:v_0-101 .
@@ -107,9 +105,8 @@ my:v_0-101
 	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.101.tar.gz> ;
 	dcs:changeset [
 		dcs:versus my:v_0-100 ;
-		dcs:item
-			[ rdfs:label "Split hostmeta_location function out from hostmeta construtor."@en ; rdfs:comment "The hostmeta_location function is useful in its own right to modules like HTTP::LRDD."@en ]
-		] .
+		dcs:item   [ rdfs:label "Split hostmeta_location function out from hostmeta construtor."@en ; rdfs:comment "The hostmeta_location function is useful in its own right to modules like HTTP::LRDD."@en ];
+	] .
 
 my:project :release my:v_0-102 .
 my:v_0-102
@@ -119,10 +116,9 @@ my:v_0-102
 	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.102.tar.gz> ;
 	dcs:changeset [
 		dcs:versus my:v_0-101 ;
-		dcs:item
-			[ rdfs:label "new() constructor no longer accepts undef content - use new_from_url() instead."@en ; a dcs:Removal ] ,
-			[ rdfs:label "new_from_url() constructor."@en ; a dcs:Addition ] 
-		] .
+		dcs:item   [ rdfs:label "new() constructor no longer accepts undef content - use new_from_url() instead."@en ; a dcs:Removal ];
+		dcs:item   [ rdfs:label "new_from_url() constructor."@en ; a dcs:Addition ];
+	] .
 
 my:project :release my:v_0-103 .
 my:v_0-103
@@ -135,8 +131,8 @@ my:v_0-103
 		dcs:item   [ rdfs:label "use 5.010"@en ; a dcs:Update ] ;
 		dcs:item   [ rdfs:label "Minor tidy"@en ] ;
 		dcs:item   [ rdfs:label "Module::Package::RDF"@en ; a dcs:Packaging ] ;
-		dcs:item   [ rdfs:label "Generate more randomised bnode identifiers." ; a dcs:Bugfix ]
-		] .
+		dcs:item   [ rdfs:label "Generate more randomised bnode identifiers." ; a dcs:Bugfix ];
+	] .
 
 my:project :release my:v_0-104 .
 my:v_0-104
@@ -146,6 +142,18 @@ my:v_0-104
 	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.104.tar.gz> ;
 	dcs:changeset [
 		dcs:versus my:v_0-103 ;
-		dcs:item   [ rdfs:label "Replace UNIVERSAL::AUTHORITY with Object::AUTHORITY."@en ] ;
-		dcs:item   [ rdfs:label "Newer version of Module::Package::RDF."@en ; a dcs:Packaging, dcs:Bugfix ] 
-		] .
+		dcs:item   [ rdfs:label "Replace UNIVERSAL::AUTHORITY with Object::AUTHORITY."@en ];
+		dcs:item   [ rdfs:label "Newer version of Module::Package::RDF."@en ; a dcs:Packaging, dcs:Bugfix ];
+	] .
+
+my:project :release my:v_0-200 .
+my:v_0-200
+	a               :Version ;
+	dc:issued       "2012-09-11"^^xsd:date ;
+	:revision       "0.200"^^xsd:string ;
+	:file-release   <http://backpan.cpan.org/authors/id/T/TO/TOBYINK/XRD-Parser-0.200.tar.gz> ;
+	dcs:changeset [
+		dcs:versus my:v_0-104 ;
+		dcs:item   [ rdfs:label "Use Digest::SHA instead of Digest::SHA1 as the former is part of the Perl core set of modules."@en ; a dcs:Update];
+		dcs:item   [ rdfs:label "Fix confused version numbers."@en ; a dcs:Packaging];
+	] .
